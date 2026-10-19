@@ -46,6 +46,7 @@ for the latest measurements.
 
 ## Order
 
-Task 002 brings the hashes to the speed of the fastest implementations. Task 001,
+Task 002 brings the hashes to the speed of the fastest implementations, and task 003
+takes the rest, the CPU's SHA instructions, to Goose as a proposal. Task 001,
 archived, built what goose-http's WebSocket (its task 054) and goose-postgres's task
 001 waited on.

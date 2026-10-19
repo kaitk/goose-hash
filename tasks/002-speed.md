@@ -17,8 +17,8 @@ The gap has two parts, which need different fixes:
 - **With them**, OpenSSL is 2 to 8 times faster, and Goose has no way to emit
   `SHA256H` or `SHA256RNDS2` ([findings](../docs/goose-findings.md#goose-has-no-sha-instructions)).
   The package and its benchmarks have no C, so that part needs Goose to offer the
-  instructions, as an operation or in the stdlib. This task measures how much of the
-  gap it is, and makes the case upstream with the numbers.
+  instructions. This task measures how much of the gap it is; task 003 takes the
+  proposal to Goose with those numbers.
 
 ## Steps
 
@@ -40,8 +40,7 @@ The gap has two parts, which need different fixes:
    key, and PBKDF2's inner and outer states reused across its iterations, as OpenSSL
    does.
 4. If Goose can't express something a step needs, reduce it to a minimal program in
-   `docs/goose-findings.md`, and report the SHA instructions upstream with this task's
-   numbers.
+   `docs/goose-findings.md`.
 5. Measure on a quiet machine: task 001's runs had a load average near 7 from other
    builds. Run on macOS (M1 Pro) and the Linux desktop (x86-64, with SHA-NI).
 
@@ -51,6 +50,6 @@ The gap has two parts, which need different fixes:
 - [ ] Rust's `sha2` and Zig's std in `bench/`, with and without the SHA instructions
 - [ ] The package within 10% of the fastest portable implementation on each case, on
       both machines, or the reason it can't be, in `docs/goose-findings.md`
-- [ ] The SHA-instruction gap measured and reported upstream
+- [ ] The SHA-instruction gap measured, for task 003's proposal
 - [ ] `docs/results.md` and `docs/results-history.md` updated, and `scripts/test.sh`
       passes
