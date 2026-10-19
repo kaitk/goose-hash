@@ -46,5 +46,6 @@ for the latest measurements.
 
 ## Order
 
-No task is open. Task 001, archived, built what goose-http's WebSocket (its task 052)
-and goose-postgres's task 001 waited on.
+Task 002 brings the hashes to the speed of the fastest implementations. Task 001,
+archived, built what goose-http's WebSocket (its task 052) and goose-postgres's task
+001 waited on.
