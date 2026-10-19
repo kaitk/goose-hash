@@ -11,8 +11,9 @@
    instructions carries a target attribute, so no build needs -march, and runs
    only once the CPU has been checked.
 
-   The state is copied in and out with memcpy: it sits in a packed Goose
-   struct, so it may not be aligned. */
+   The state may sit unaligned in a packed Goose struct, so it is passed as
+   `void *` and copied in and out of an aligned local with memcpy; no
+   `uint32_t *` or vector pointer is ever formed into it. */
 #if defined(_MSC_VER)
 #define _CRT_SECURE_NO_WARNINGS /* getenv */
 #endif
@@ -136,7 +137,7 @@ GH_TARGET static inline uint32x4_t load_be(const uint8_t *p) {
     return vreinterpretq_u32_u8(vrev32q_u8(vld1q_u8(p)));
 }
 
-GH_TARGET static void sha256_arm(uint32_t *s, const uint8_t *data, int64_t blocks) {
+GH_TARGET static void sha256_arm(void *s, const uint8_t *data, int64_t blocks) {
     uint32x4_t STATE0, STATE1, ABEF_SAVE, CDGH_SAVE;
     uint32x4_t MSG0, MSG1, MSG2, MSG3;
     uint32x4_t TMP0, TMP1, TMP2;
@@ -264,7 +265,7 @@ GH_TARGET static void sha256_arm(uint32_t *s, const uint8_t *data, int64_t block
     memcpy(s, st, sizeof st);
 }
 
-GH_TARGET static void sha1_arm(uint32_t *s, const uint8_t *data, int64_t blocks) {
+GH_TARGET static void sha1_arm(void *s, const uint8_t *data, int64_t blocks) {
     uint32x4_t ABCD, ABCD_SAVED;
     uint32x4_t TMP0, TMP1;
     uint32x4_t MSG0, MSG1, MSG2, MSG3;
@@ -408,14 +409,16 @@ GH_TARGET static void sha1_arm(uint32_t *s, const uint8_t *data, int64_t blocks)
 
 #elif defined(GH_X86)
 
-GH_TARGET static void sha256_x86(uint32_t *s, const uint8_t *data, int64_t blocks) {
+GH_TARGET static void sha256_x86(void *s, const uint8_t *data, int64_t blocks) {
     __m128i STATE0, STATE1;
     __m128i MSG, TMP;
     __m128i MSG0, MSG1, MSG2, MSG3;
     __m128i ABEF_SAVE, CDGH_SAVE;
     const __m128i MASK = _mm_set_epi64x(0x0c0d0e0f08090a0bULL, 0x0405060700010203ULL);
-    TMP = _mm_loadu_si128((const __m128i *)&s[0]);
-    STATE1 = _mm_loadu_si128((const __m128i *)&s[4]);
+    uint32_t st[8];
+    memcpy(st, s, sizeof st);
+    TMP = _mm_loadu_si128((const __m128i *)&st[0]);
+    STATE1 = _mm_loadu_si128((const __m128i *)&st[4]);
     TMP = _mm_shuffle_epi32(TMP, 0xB1);          /* CDAB */
     STATE1 = _mm_shuffle_epi32(STATE1, 0x1B);    /* EFGH */
     STATE0 = _mm_alignr_epi8(TMP, STATE1, 8);    /* ABEF */
@@ -567,18 +570,19 @@ GH_TARGET static void sha256_x86(uint32_t *s, const uint8_t *data, int64_t block
     STATE1 = _mm_shuffle_epi32(STATE1, 0xB1);    /* DCHG */
     STATE0 = _mm_blend_epi16(TMP, STATE1, 0xF0); /* DCBA */
     STATE1 = _mm_alignr_epi8(STATE1, TMP, 8);    /* ABEF */
-    _mm_storeu_si128((__m128i *)&s[0], STATE0);
-    _mm_storeu_si128((__m128i *)&s[4], STATE1);
+    _mm_storeu_si128((__m128i *)&st[0], STATE0);
+    _mm_storeu_si128((__m128i *)&st[4], STATE1);
+    memcpy(s, st, sizeof st);
 }
 
-GH_TARGET static void sha1_x86(uint32_t *s, const uint8_t *data, int64_t blocks) {
+GH_TARGET static void sha1_x86(void *s, const uint8_t *data, int64_t blocks) {
     __m128i ABCD, ABCD_SAVE, E0, E0_SAVE, E1;
     __m128i MSG0, MSG1, MSG2, MSG3;
     const __m128i MASK = _mm_set_epi64x(0x0001020304050607ULL, 0x08090a0b0c0d0e0fULL);
-    uint32_t e;
-    memcpy(&e, &s[4], 4);
-    ABCD = _mm_loadu_si128((const __m128i *)s);
-    E0 = _mm_set_epi32((int)e, 0, 0, 0);
+    uint32_t st[5];
+    memcpy(st, s, sizeof st);
+    ABCD = _mm_loadu_si128((const __m128i *)&st[0]);
+    E0 = _mm_set_epi32((int)st[4], 0, 0, 0);
     ABCD = _mm_shuffle_epi32(ABCD, 0x1B);
     for (; blocks > 0; blocks--, data += 64) {
         ABCD_SAVE = ABCD;
@@ -724,9 +728,9 @@ GH_TARGET static void sha1_x86(uint32_t *s, const uint8_t *data, int64_t blocks)
         ABCD = _mm_add_epi32(ABCD, ABCD_SAVE);
     }
     ABCD = _mm_shuffle_epi32(ABCD, 0x1B);
-    _mm_storeu_si128((__m128i *)s, ABCD);
-    e = (uint32_t)_mm_extract_epi32(E0, 3);
-    memcpy(&s[4], &e, 4);
+    _mm_storeu_si128((__m128i *)&st[0], ABCD);
+    st[4] = (uint32_t)_mm_extract_epi32(E0, 3);
+    memcpy(s, st, sizeof st);
 }
 
 #define SHA256_BLOCKS sha256_x86
@@ -734,7 +738,7 @@ GH_TARGET static void sha1_x86(uint32_t *s, const uint8_t *data, int64_t blocks)
 
 #endif
 
-bool gh_sha256_blocks(uint32_t *state, gh_bytes data) {
+bool gh_sha256_blocks(void *state, gh_bytes data) {
 #if defined(SHA256_BLOCKS)
     if (!gh_sha_instructions()) return false;
     SHA256_BLOCKS(state, data.data, data.len / 64);
@@ -746,7 +750,7 @@ bool gh_sha256_blocks(uint32_t *state, gh_bytes data) {
 #endif
 }
 
-bool gh_sha1_blocks(uint32_t *state, gh_bytes data) {
+bool gh_sha1_blocks(void *state, gh_bytes data) {
 #if defined(SHA1_BLOCKS)
     if (!gh_sha_instructions()) return false;
     SHA1_BLOCKS(state, data.data, data.len / 64);

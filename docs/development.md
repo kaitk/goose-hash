@@ -136,7 +136,8 @@ rounds, so the fallback stays tested wherever the instructions run.
    message, and a million `a`; SHA-1 against RFC 6455's handshake example, through
    stdlib's `base64`; and streaming SHA-256 against one-shot, with the million `a` fed
    in pieces of 1 to 4,096 bytes, and inputs of 0 to 200 bytes split in two at every
-   offset and fed a byte at a time. `test/hmac/` checks RFC 4231's cases 1 to 7, and
+   offset and fed a byte at a time; and SHA-256 and HMAC-SHA-256 states that sit
+   unaligned after a byte in a struct ([sanitizers](#run-the-tests)). `test/hmac/` checks RFC 4231's cases 1 to 7, and
    case 7 split at every offset from one keyed state. `test/pbkdf2/` checks RFC 7914's
    two PBKDF2-HMAC-SHA-256 vectors, and that a 40-byte key is a prefix of a 64-byte
    one. `test/compare/` checks `equal` on equal slices, a difference at either end,
@@ -212,6 +213,19 @@ After a change that alters what a test prints, run it with `--bless`, and read t
 of `test/expected/` before committing it: blessing writes whatever the program printed
 at the first level it ran, provided it exited as expected. A digest in a golden file
 must be the published one, never only what the code printed.
+
+`goose build` has no option for C flags, so to run the tests under AddressSanitizer
+and UBSan, give `CC` a wrapper that adds them to every compile and link. With clang:
+
+```sh
+printf '#!/bin/sh\nexec clang -fsanitize=address,undefined -fno-sanitize-recover=all "$@"\n' > /tmp/cc-san
+chmod +x /tmp/cc-san
+CC=/tmp/cc-san python3 test/run_tests.py
+```
+
+`test/sha/sha256_unaligned.goose` hashes through states that sit unaligned in a packed
+struct, which a misaligned access in `shim/sha.c` makes such a run abort. All tests
+passed this way on macOS on arm64 and on Linux on arm64 (2026-10-19).
 
 To try one case by hand:
 
