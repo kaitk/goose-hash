@@ -1,8 +1,8 @@
 # Development
 
-The package is Goose and one C file, `shim/sha.c`, which `goose build` compiles with
-the program through `hash.build`, so it builds wherever the Goose compiler and a C
-compiler do.
+The package is Goose and two C files, `shim/sha.c` and `shim/random.c`, which
+`goose build` compiles with the program through `hash.build`, so it builds wherever the
+Goose compiler and a C compiler do.
 
 ## Where it has run
 
@@ -17,6 +17,9 @@ compiler do.
 | The same, each test program and `build/digest` under QEMU 10.0.13's `qemu-x86_64 -cpu max` | gcc 14.2.0 | yes: QEMU emulates SHA-NI | passes |
 | Windows, MSVC or clang | – | – | not run |
 
+`random_bytes` and its test have run on macOS and on Linux on arm64 above, with
+glibc 2.41 (2026-10-19); the x86-64 rows predate them.
+
 What hasn't been checked:
 
 - SHA-NI on a real x86-64 CPU: the x86-64 code has run only under QEMU's emulation,
@@ -24,7 +27,13 @@ What hasn't been checked:
 - Windows. The shim's MSVC branches (`__cpuidex`, `IsProcessorFeaturePresent`, no
   target attributes, `/std:c11`) haven't been compiled. On arm64, MSVC declares the
   ACLE SHA intrinsics in its own `arm64_neon.h`, and whether it takes them as the shim
-  calls them is untested.
+  calls them is untested. `shim/random.c`'s Windows branch, `BCryptGenRandom` linked
+  through `c_libs_windows`, has been compiled and linked into a small C program by
+  `zig cc` 0.17.0 for `x86_64-windows-gnu`, and compiled for `aarch64-windows-gnu`,
+  against MinGW-w64's headers, but not run, and not compiled by MSVC.
+- `random_bytes` reading `/dev/urandom`, which happens only on a Linux kernel older
+  than 3.17, and its abort when the OS's source fails, which no supported OS gives
+  a way to cause.
 - Linux on arm64 without the SHA instructions, where the check must fall back; the
   fallback itself is tested with `GOOSE_HASH_PORTABLE=1`.
 
@@ -121,7 +130,12 @@ rounds, so the fallback stays tested wherever the instructions run.
    case 7 split at every offset from one keyed state. `test/pbkdf2/` checks RFC 7914's
    two PBKDF2-HMAC-SHA-256 vectors, and that a 40-byte key is a prefix of a 64-byte
    one. `test/compare/` checks `equal` on equal slices, a difference at either end,
-   and different lengths.
+   and different lengths. `test/random/` checks that `random_bytes` fills exactly the
+   slice given, that two draws of 32 bytes differ, that 1,000 draws of 64 bytes and
+   one of 70,000 bytes each hold all 256 byte values, that the 70,000 bytes have no
+   all-zero 256-byte piece, and that an empty slice is no error: a check that the
+   bytes come from somewhere, not a statistical test, which fails by chance with odds
+   below 2^-200.
 3. `goose build` of `test/digest.goose` into `build/digest`, a command that answers
    each line of its input: an operation and its arguments in hexadecimal.
 4. `scripts/against_python.py`: 300 random cases of each operation through

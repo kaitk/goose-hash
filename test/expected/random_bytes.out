@@ -1,0 +1,7 @@
+32 random bytes aren't all zero: ok
+two draws of 32 bytes differ: ok
+only the slice given is filled: ok
+1,000 draws of 64 bytes hold every byte value: ok
+one draw of 70,000 bytes fills every 256-byte piece: ok
+one draw of 70,000 bytes holds every byte value: ok
+an empty slice is filled without error: ok

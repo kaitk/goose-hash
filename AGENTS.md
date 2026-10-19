@@ -70,18 +70,22 @@ their machine.
   references into growing arrays, `return ... from` for errors, untyped parameters for
   generics.
 
-## Goose, and C only for the SHA instructions
+## Goose, and C only for what Goose can't reach
 
-- The package is Goose, and imports no other package. Its one exception is
-  `shim/sha.c`, built through `hash.build`: SHA-1's and SHA-256's compression functions
-  on the CPU's SHA instructions, which Goose can't express yet
-  ([decisions](docs/decisions.md), 2026-10-19). Nothing else goes in C. The Goose
-  rounds stay as the fallback, tested with `GOOSE_HASH_PORTABLE=1`, and the C goes
-  away once Goose's stdlib has SHA on the instructions (task 003).
+- The package is Goose, and imports no other package. Its exceptions are two C files
+  built through `hash.build`, for what Goose can't reach yet
+  ([decisions](docs/decisions.md), 2026-10-19). Nothing else goes in C.
+  - `shim/sha.c`: SHA-1's and SHA-256's compression functions on the CPU's SHA
+    instructions. The Goose rounds stay as the fallback, tested with
+    `GOOSE_HASH_PORTABLE=1`, and the C goes away once Goose's stdlib has SHA on the
+    instructions (task 003).
+  - `shim/random.c`: the OS's secure random source, for `random_bytes`. It never
+    falls back to anything weaker, and goes away once Goose's stdlib has secure random
+    bytes on every platform.
 - Other languages belong in `bench/` only, as the language of the library the package
   is measured against: C for OpenSSL's libcrypto.
-- Hashes and MACs only. Ciphers, signatures, and key generation are OpenSSL's, through
-  goose-tls ([decisions](docs/decisions.md)).
+- Hashes, MACs, and the OS's random bytes only. Ciphers, signatures, and key
+  generation are OpenSSL's, through goose-tls ([decisions](docs/decisions.md)).
 - Nothing branches or indexes memory on secret data. SHA and HMAC don't; comparing a
   MAC with an expected one goes through the package's constant-time compare.
 

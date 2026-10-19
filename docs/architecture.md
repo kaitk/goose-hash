@@ -8,12 +8,14 @@ are in [results](results.md).
 
 goose-hash is imported as `hash` and imports nothing but Goose's stdlib, so any Goose
 program can use it: goose-http for WebSocket's handshake, goose-postgres for
-SCRAM-SHA-256, and goose-rest for verifying a JWT. It holds hashes and MACs only.
-Ciphers, signatures, and key generation stay in OpenSSL, through goose-tls.
+SCRAM-SHA-256, and goose-rest for verifying a JWT. It holds hashes, MACs, and the OS's
+random bytes only. Ciphers, signatures, and key generation stay in OpenSSL, through
+goose-tls.
 
-The functions are Goose, not bindings to OpenSSL. The one part in C is SHA-1's and
-SHA-256's compression function on the CPU's SHA instructions, which Goose can't express
-yet ([SHA instructions](#the-sha-instructions)). Bytes go in as `u8[:]` slices and
+The functions are Goose, not bindings to OpenSSL. Two parts are in C, for what Goose
+can't reach yet: SHA-1's and SHA-256's compression function on the CPU's SHA
+instructions ([SHA instructions](#the-sha-instructions)), and the OS's secure random
+source ([random bytes](#random-bytes)). Bytes go in as `u8[:]` slices and
 digests come out as fixed arrays, `u8[20]` or `u8[32]`, which need no allocation and
 can be compared with `==` or sliced to a `u8[:]`.
 
@@ -47,6 +49,13 @@ can be compared with `==` or sliced to a `u8[:]`.
 - `hash::equal(a, b) -> bool`: whether two byte slices hold the same bytes, in a time
   that depends on their lengths only. Compare a received MAC with the expected one
   with it, not with `==`, which returns at the first difference.
+- `hash::random_bytes(out)`: fills the `u8[:]` slice `out`, of any length, with bytes
+  from the OS's cryptographically secure random source, for a nonce, a salt, or a key.
+  An empty slice is no error. If the source fails, the program aborts with a message
+  rather than go on with weaker bytes; it returns nothing to check. libpq's SCRAM
+  client nonce is 18 such bytes, base64-encoded.
+- `hash::sha_instructions() -> bool`: whether SHA-1 and SHA-256 run on the CPU's SHA
+  instructions in this process ([below](#the-sha-instructions)).
 
 ## SHA-1 and SHA-256
 
@@ -96,6 +105,23 @@ two give the same digests; the tests run on both ([development](development.md#t
 
 The C, like the Goose rounds, has no branch or memory index that depends on the data
 or a key.
+
+## Random bytes
+
+Goose's `random_seed()` is entropy for seeding `rng`, and on Windows it's a mix of the
+clocks, the process id, and an address
+([findings](goose-findings.md#goose-has-no-secure-random-bytes)). So `random_bytes`
+calls `shim/random.c`, which asks the OS directly:
+
+| Platform | Source |
+|---|---|
+| Windows | `BCryptGenRandom` with `BCRYPT_USE_SYSTEM_PREFERRED_RNG`, from `bcrypt.lib`, which `hash.build` links. |
+| macOS, Linux, and other POSIX systems | `getentropy`, 256 bytes a call. On Linux it blocks until the kernel's pool is first seeded, early in boot, and never after. |
+| Linux before 3.17, which lacks `getrandom` | `/dev/urandom`, read only when `getentropy` fails with `ENOSYS`. |
+
+Any other failure, and `/dev/urandom` failing to open or read, makes the C return
+`false`, and `random_bytes` aborts. Nothing falls back to a clock or a PRNG. Linux's
+`getentropy` needs glibc 2.25 or musl 1.1.20, or later.
 
 ## HMAC and PBKDF2
 

@@ -39,6 +39,28 @@ with its reason and the trade-off that matters.
   time; and taking SHA from OpenSSL through goose-tls, rejected above. The trade-off:
   a program that imports the package now needs a C compiler for its C, which
   `goose build` needs anyway, and the C is the package's to keep correct on each CPU.
+- **The OS's secure random source, in C for now (2026-10-19).** This extends the C
+  allowance above to a second purpose that Goose can't reach on every platform: the
+  OS's cryptographically secure random bytes. `hash::random_bytes(out)` fills a slice
+  through `shim/random.c`: `BCryptGenRandom` with `BCRYPT_USE_SYSTEM_PREFERRED_RNG` on
+  Windows, linked through `hash.build`'s `c_libs_windows`, and `getentropy` elsewhere,
+  256 bytes a call, reading `/dev/urandom` only where the kernel lacks `getrandom`.
+  Reason: goose-postgres's SCRAM-SHA-256 login needs a client nonce that can't be
+  predicted, and Goose's `random_seed()` is for seeding `rng`, not for secrets. At
+  `v2026.2` (`3ee3871`) and on master at `4c58784`, the runtime's `gs_os_random_u64`
+  reads 8 bytes from `/dev/urandom` on POSIX, and on Windows, or where that file can't
+  be read, returns a mix of the clocks, the process id, and an address
+  ([findings](goose-findings.md#goose-has-no-secure-random-bytes)). If the OS's source
+  fails, `random_bytes` aborts the program, as `pbkdf2_sha256` does on a count below
+  1, rather than return an error: no caller can do anything safe with fewer or weaker
+  bytes, and the sources it uses don't fail on a supported OS once it has booted.
+  Random bytes are a primitive that nonces and keys are taken from, not the key
+  generation that "Hashes and MACs only" leaves to OpenSSL. The C goes away when
+  Goose's stdlib has secure random bytes. Rejected: `random_seed()`, which is weak
+  on Windows; reading `/dev/urandom` from Goose, which has no Windows equivalent; and
+  leaving each caller to bring its own C. The trade-off: one more C file for the
+  package to keep correct on each OS, and `bcrypt.lib` linked into every Windows
+  program that imports the package.
 
 ## Open
 

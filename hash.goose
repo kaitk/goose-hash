@@ -1,5 +1,6 @@
-// The package's entry: SHA-1, SHA-256, HMAC-SHA-256, PBKDF2-HMAC-SHA-256, and a
-// constant-time compare. Bytes in, digests out as fixed arrays.
+// The package's entry: SHA-1, SHA-256, HMAC-SHA-256, PBKDF2-HMAC-SHA-256, a
+// constant-time compare, and the OS's secure random bytes. Bytes in, digests
+// out as fixed arrays.
 //
 // Nothing here branches on, or indexes memory with, the bytes it hashes or a
 // key: only lengths, which aren't secret, steer the code.
@@ -9,6 +10,7 @@ import std;
 import .sha1;
 import .sha256;
 import .hmac;
+import .random;
 
 // Whether SHA-1 and SHA-256 run on the CPU's SHA instructions rather than on
 // the package's own rounds: true where the CPU has them, unless the

@@ -51,4 +51,6 @@ implementations. Task 003 takes the CPU's SHA instructions to Goose's stdlib as 
 proposal, with task 004's C as its prototype; once Goose has them, the shim goes.
 Archived: task 001 built what goose-http's WebSocket (its task 054) and
 goose-postgres's task 001 waited on, and task 004 put SHA-1 and SHA-256 on the CPU's
-SHA instructions through a C shim, the largest part of the gap to OpenSSL.
+SHA instructions through a C shim, the largest part of the gap to OpenSSL. Task 005
+added `random_bytes`, from the OS's secure source through C, for goose-postgres's
+SCRAM client nonce.

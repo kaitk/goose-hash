@@ -16,6 +16,47 @@ None yet.
 
 ## Feature requests
 
+### Goose has no secure random bytes
+
+Found on `v2026.2` (`3ee3871`), and still so on master at `4c58784`, 2026-10-19.
+Status: open; not reported upstream.
+
+The stdlib's one source of entropy is `random_seed() -> u64`, in `os`, "Entropy, for
+seeding an rng". The runtime's `gs_os_random_u64` (`src/runtime/runtime_os.h`) reads 8 bytes
+from `/dev/urandom` on POSIX. On Windows, or where `/dev/urandom` can't be opened or
+read, it returns a splitmix64 mix of the clocks, the process id, and an address, with
+no sign that it did. Its own comment says so:
+
+```c
+/* Entropy for seeding a PRNG (not cryptographic): /dev/urandom where there
+   is one; on Windows a splitmix64 mix of the clocks, the process id and an
+   address, which needs no library beyond the runtime's. */
+```
+
+That's right for seeding `rng`, but not for a nonce or a key, and no Goose code can
+reach the OS's secure source on Windows. Expected: a stdlib function that fills a slice
+from the OS's cryptographically secure source, `BCryptGenRandom` on Windows and
+`getentropy` or `getrandom` elsewhere, and fails loudly rather than fall back.
+
+```goose
+// A SCRAM client nonce, 18 bytes that must not be predictable. On Windows its
+// seed is the clocks, the process id, and an address.
+import std;
+import os;
+
+fn main() {
+    var r = rng { random_seed() };
+    var nonce: u8[18] = [0; 18];
+    for i in 18 { nonce[i] = (r.rand_u64() >> 56) as! u8; }
+    print(nonce[0]);
+}
+```
+
+Workaround: `hash::random_bytes` fills a slice from the OS's source through
+`shim/random.c` ([decisions](decisions.md)). A fix is a small function in the runtime,
+which already calls the OS in `runtime_os.h`, but it links `bcrypt` on Windows, which
+the runtime avoids today; it's still far less work than the SHA instructions below.
+
 ### Goose has no SHA instructions
 
 Found on `v2026.2` (`3ee3871`), task 001. Status: open; not reported upstream.
