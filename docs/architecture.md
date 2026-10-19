@@ -134,8 +134,11 @@ PBKDF2 calls HMAC once per iteration on the previous iteration's 32 bytes. After
 first iteration, each one is exactly one block for the inner hash and one for the
 outer, so `pbkdf2_sha256` runs the compression function on copies of the key's two
 states directly, with the padding for a 96-byte message written once: two
-compression calls an iteration, and no buffering or length counting. Each 32-byte
-block of `out` is derived on its own, so a shorter `out` is a prefix of a longer one.
+compression calls an iteration, and no buffering or length counting. The salt is
+hashed once, into a copy of the key's inner state, before any of `out` is written;
+each 32-byte block of `out` starts from a copy of that state, adds its index, and is
+derived on its own. So `out` may overlap `salt`, and a shorter `out` is a prefix of a
+longer one.
 
 ## No branch on secret data
 

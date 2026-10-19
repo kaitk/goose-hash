@@ -53,9 +53,14 @@ fn hmac_sha256(key: const u8[:], data: const u8[:]) -> u8[32] {
 // Each round after the first MACs the previous round's 32 bytes, one block
 // for the inner hash and one for the outer, so it runs the compression
 // function on the key's two states directly with the padding already in place.
+//
+// The salt is taken into a keyed state before any of `out` is written, so
+// `out` may overlap `salt`.
 fn pbkdf2_sha256(out: u8[:], password: const u8[:], salt: const u8[:], iterations: i64) {
     assert(iterations >= 1);
     let key = hmac_sha256_start(password);
+    var salted = key;
+    hmac_sha256_update(salted, salt);
     // One 32-byte message after a 64-byte pad: 96 bytes, 768 bits.
     var msg: u8[64] = [0; 64];
     msg[32] = 0x80;
@@ -66,8 +71,7 @@ fn pbkdf2_sha256(out: u8[:], password: const u8[:], salt: const u8[:], iteration
     while at < out.len {
         n += 1;
         store_be32(index, 0, n);
-        var first = key;
-        hmac_sha256_update(first, salt);
+        var first = salted;
         hmac_sha256_update(first, index);
         var u = hmac_sha256_finish(first);
         var t = u;
