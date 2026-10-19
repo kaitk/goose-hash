@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Runs the tests under test/<area>/, as Goose's own test/run_tests.py does.
 
-Each test/<area>/<name>.goose is a program. The runner compiles them to C in
-batches, a `goose --multi-test` run per batch, at -O0 and at -O2; builds each
-with the C compiler `goose toolchain` names, against the Goose runtime compiled
-once per level; and runs each as a process of its own, all in parallel. A run
-passes when its stdout is test/expected/<name>.out, every nonblank line of
-test/expected/<name>.stderr, if there is one, occurs in its stderr, and it
-exits 0, or not 0 where test/expected/<name>.aborts exists.
+Each test/<area>/<name>.goose is a program. Every one links the package's C,
+shim/sha.c, so the runner builds each with `goose build` at -O0 and at -O2, as
+Goose's runner builds a fixture with C of its own, and runs each twice, as a
+process of its own, all in parallel: once on the rounds the package picks for
+the CPU, and once with GOOSE_HASH_PORTABLE=1, on the package's own rounds, so
+both stay tested. A run passes when its stdout is test/expected/<name>.out,
+every nonblank line of test/expected/<name>.stderr, if there is one, occurs in
+its stderr, and it exits 0, or not 0 where test/expected/<name>.aborts exists.
 
 A file with `// error: <message>` lines is a fixture that must not compile:
 `goose --multi-test --check` must exit 1, with each message in its diagnostics.
@@ -22,7 +23,6 @@ scripts/goose.sh), and CC the C compiler, as for `goose build --cc`.
 import argparse
 import concurrent.futures
 import difflib
-import json
 import os
 import re
 import subprocess
@@ -42,9 +42,9 @@ LEVELS = (0, 2)
 MULTIMARK = "==== goose --multi-test: exit"
 
 
-def run(argv):
+def run(argv, env=None):
     """(exit code, stdout, stderr) of argv, as text with LF line endings."""
-    r = subprocess.run([str(a) for a in argv], capture_output=True)
+    r = subprocess.run([str(a) for a in argv], capture_output=True, env=env)
     def text(b):
         return b.decode("utf-8", errors="replace").replace("\r\n", "\n")
     return r.returncode, text(r.stdout), text(r.stderr)
@@ -67,38 +67,6 @@ def find_goose():
     if WINDOWS and goose.startswith("/"):
         goose = run(["cygpath", "-w", goose])[1].strip()
     return goose
-
-
-class CC:
-    """The C compiler `goose build` would use, and the flags it takes."""
-
-    def __init__(self, goose):
-        argv = [goose, "toolchain", "--json"]
-        if os.environ.get("CC"):
-            argv[2:2] = ["--cc", os.environ["CC"]]
-        code, out, err = run(argv)
-        if code != 0:
-            sys.exit(f"goose toolchain found no C compiler:\n{out}{err}")
-        cc = json.loads(out)["cc"]
-        self.path = cc["path"]
-        self.msvc = cc["style"] == "msvc"
-
-    def opt(self, level):
-        if self.msvc:
-            return ["/nologo", "/Od" if level == 0 else f"/O{level}"]
-        return [f"-O{level}"]
-
-    def compile_object(self, source, obj, level):
-        if self.msvc:
-            return run([self.path, *self.opt(level), "/c", source, f"/Fo:{obj}"])
-        return run([self.path, *self.opt(level), "-c", source, "-o", obj])
-
-    def link(self, sources, exe, level):
-        if self.msvc:
-            return run([self.path, *self.opt(level), *sources, f"/Fe:{exe}",
-                        f"/Fo:{exe.parent}{os.sep}"])
-        libs = [] if WINDOWS else ["-pthread", "-lm"]
-        return run([self.path, *self.opt(level), *sources, "-o", exe, *libs])
 
 
 def split_multi(text, files):
@@ -136,8 +104,8 @@ def batches(files, jobs):
 
 
 class Tests:
-    def __init__(self, goose, cc, jobs, levels, bless, verbose):
-        self.goose, self.cc, self.levels = goose, cc, levels
+    def __init__(self, goose, jobs, levels, bless, verbose):
+        self.goose, self.levels = goose, levels
         self.bless, self.verbose = bless, verbose
         self.pool = concurrent.futures.ThreadPoolExecutor(jobs)
         self.jobs = jobs
@@ -174,58 +142,39 @@ class Tests:
                 else:
                     self.report(f, "--check")
 
-    def runtime(self):
-        """{level: the Goose runtime's object, compiled at that level}."""
-        OUT.mkdir(parents=True, exist_ok=True)
-        source = OUT / "goose_runtime.c"
-        code, out, err = run([self.goose, "--emit-runtime", source])
-        if code != 0:
-            sys.exit(f"goose --emit-runtime failed:\n{out}{err}")
-        objects = {}
-        for level in self.levels:
-            obj = OUT / f"O{level}" / ("goose_runtime" + (".obj" if self.cc.msvc else ".o"))
-            obj.parent.mkdir(parents=True, exist_ok=True)
-            objects[level] = (obj, self.pool.submit(self.cc.compile_object, source, obj, level))
-        for level, (obj, future) in objects.items():
-            code, out, err = future.result()
-            if code != 0:
-                sys.exit(f"the runtime didn't compile at -O{level}:\n{out}{err}")
-            objects[level] = obj
-        return objects
-
-    def build_and_run(self, test, level, runtime):
-        """(build failure, or None; exit code, stdout, stderr of the run)."""
-        cfile = OUT / f"O{level}" / f"{test.stem}.c"
-        exe = cfile.with_suffix(EXE)
-        code, out, err = self.cc.link([cfile, runtime], exe, level)
+    def build_and_run(self, test, level):
+        """(build failure, or None; [(label, exit code, stdout, stderr)] of the
+        runs, on the CPU's rounds and on the package's own)."""
+        exe = OUT / f"O{level}" / (test.stem + EXE)
+        exe.parent.mkdir(parents=True, exist_ok=True)
+        cc = ["--cc", os.environ["CC"]] if os.environ.get("CC") else []
+        code, out, err = run([self.goose, "build", f"-O{level}", *cc, "-o", exe, test])
         if code != 0:
             return out + err, None
-        return None, run([exe])
+        env = {k: v for k, v in os.environ.items() if k != "GOOSE_HASH_PORTABLE"}
+        runs = [(f"-O{level}", *run([exe], env))]
+        env["GOOSE_HASH_PORTABLE"] = "1"
+        runs.append((f"-O{level} portable", *run([exe], env)))
+        return None, runs
 
     def check_programs(self, programs):
-        runtime = self.runtime()
-        compiles = []
+        # The first build compiles the package's C, which every level shares.
+        # The rest find it built, rather than all compiling it at once.
+        first = self.build_and_run(programs[0], self.levels[0])
+        runs = {(programs[0], self.levels[0]): first}
         for level in self.levels:
-            args = [f"-O{level}", "-o", OUT / f"O{level}" / "%.c"]
-            for b in batches(programs, self.jobs):
-                compiles.append((level, self.pool.submit(multi_test, self.goose, args, b)))
-        runs = {}
-        for level, future in compiles:
-            for f, (code, out, err) in future.result().items():
-                if code != 0:
-                    self.report(f, f"-O{level}", "doesn't compile", out + err)
-                else:
-                    runs[f, level] = self.pool.submit(self.build_and_run, f, level,
-                                                      runtime[level])
-        for (f, level), future in sorted(runs.items(), key=lambda r: (str(r[0][0]), r[0][1])):
-            failure, result = future.result()
+            for f in programs:
+                if (f, level) not in runs:
+                    runs[f, level] = self.pool.submit(self.build_and_run, f, level)
+        for (f, level), r in sorted(runs.items(), key=lambda r: (str(r[0][0]), r[0][1])):
+            failure, results = r if isinstance(r, tuple) else r.result()
             if failure is not None:
-                self.report(f, f"-O{level}", "C compiler failed", failure)
+                self.report(f, f"-O{level}", "goose build failed", failure)
             else:
-                self.check_run(f, level, *result)
+                for result in results:
+                    self.check_run(f, level, *result)
 
-    def check_run(self, test, level, code, out, err):
-        label = f"-O{level}"
+    def check_run(self, test, level, label, code, out, err):
         expected = EXPECTED / f"{test.stem}.out"
         aborts = (EXPECTED / f"{test.stem}.aborts").exists()
         if aborts and code == 0:
@@ -290,8 +239,7 @@ def main():
     programs = [t for t in tests if t not in errors]
     goose = find_goose()
     levels = (args.level,) if args.level is not None else LEVELS
-    suite = Tests(goose, CC(goose) if programs else None, args.jobs, levels, args.bless,
-                  args.verbose)
+    suite = Tests(goose, args.jobs, levels, args.bless, args.verbose)
     if errors:
         suite.check_errors(errors)
     if programs:

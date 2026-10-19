@@ -6,9 +6,11 @@
 //   sha1 DATA                  sha256 DATA            hmac KEY DATA
 //   sha256-stream DATA CUTS    hmac-stream KEY DATA CUTS
 //   pbkdf2 PASSWORD SALT ITERATIONS LENGTH            equal A B
+//   path
 //
 // CUTS is a comma-separated list of the offsets where the input is split
-// across update calls. equal prints 1 or 0.
+// across update calls. equal prints 1 or 0. path prints which rounds SHA-1 and
+// SHA-256 run on: "instructions", the CPU's, or "portable", the package's own.
 import std;
 import os;
 import hash from "../";
@@ -92,6 +94,8 @@ fn main() {
             emit(out, dk);
         } else if op == "equal" {
             out.append(if hash::equal(unhex(f[1]), unhex(f[2])) { "1\n" } else { "0\n" });
+        } else if op == "path" {
+            out.append(if hash::sha_instructions() { "instructions\n" } else { "portable\n" });
         } else {
             abort(str("unknown operation ", op));
         }

@@ -10,6 +10,12 @@ import .sha1;
 import .sha256;
 import .hmac;
 
+// Whether SHA-1 and SHA-256 run on the CPU's SHA instructions rather than on
+// the package's own rounds: true where the CPU has them, unless the
+// environment variable GOOSE_HASH_PORTABLE is set to anything but 0 when the
+// process first hashes. The answer holds for the life of the process.
+extern "gh_sha_instructions" fn sha_instructions() -> bool;
+
 // Whether a and b hold the same bytes, taking a time that depends on their
 // lengths and not on where they differ: for checking a MAC against the one
 // expected. Slices of different lengths are unequal at once.

@@ -68,10 +68,18 @@ fn sha256(data: const u8[:]) -> u8[32] {
     return sha256_finish(s);
 }
 
-// Takes data, a whole number of 64-byte blocks, into the state h. The message
-// schedule is kept 16 words at a time; every index is a round number masked to
-// the array, so no check is left in the loop.
+// Takes data, a whole number of 64-byte blocks, into the state h, on the CPU's
+// SHA instructions where it has them (shim/sha.c), else on sha256_rounds.
 fn sha256_blocks(state: u32[8]&, data: const u8[:]) {
+    if !sha256_blocks_c(state, data) { sha256_rounds(state, data); }
+}
+
+extern "gh_sha256_blocks" fn sha256_blocks_c(state: u32[8]&, data: const u8[:]) -> bool;
+
+// sha256_blocks in Goose. The message schedule is kept 16 words at a time;
+// every index is a round number masked to the array, so no check is left in
+// the loop.
+fn sha256_rounds(state: u32[8]&, data: const u8[:]) {
     let k .= SHA256_K;
     var w: u32[16] = [0; 16];
     var i = 0;

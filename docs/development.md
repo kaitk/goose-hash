@@ -1,11 +1,35 @@
 # Development
 
-The package is Goose with no C, so it builds wherever the Goose compiler does. The
-tests have run on macOS on arm64, and on Linux on x64 in Docker's `python:3.12` image
-with its gcc 14.2.0, emulated on the same Mac (2026-10-19). Linux on arm64 hasn't run:
-the release has no archive for it, so `scripts/goose.sh` builds Goose from source
-there, which needs CMake. Windows hasn't run either. The benchmark has run on macOS
-only.
+The package is Goose and one C file, `shim/sha.c`, which `goose build` compiles with
+the program through `hash.build`, so it builds wherever the Goose compiler and a C
+compiler do.
+
+## Where it has run
+
+`scripts/test.sh` runs every test on the SHA instructions and on the Goose rounds
+([Test](#test)). As of 2026-10-19:
+
+| Platform | Compiler | SHA instructions | Result |
+|---|---|---|---|
+| macOS 26.3.1 on an Apple M1 Pro | Apple clang 21.0.0 | yes | passes |
+| Linux on arm64, Docker's `python:3.12` on the same Mac | gcc 14.2.0, clang 19.1.7 | yes | passes |
+| Linux on x86-64, Docker's `python:3.12` under Rosetta on the same Mac | gcc 14.2.0, clang 19.1.7 | no: Rosetta has no SHA-NI | passes, on the Goose rounds |
+| The same, each test program and `build/digest` under QEMU 10.0.13's `qemu-x86_64 -cpu max` | gcc 14.2.0 | yes: QEMU emulates SHA-NI | passes |
+| Windows, MSVC or clang | – | – | not run |
+
+What hasn't been checked:
+
+- SHA-NI on a real x86-64 CPU: the x86-64 code has run only under QEMU's emulation,
+  which checks what it computes but not how fast.
+- Windows. The shim's MSVC branches (`__cpuidex`, `IsProcessorFeaturePresent`, no
+  target attributes, `/std:c11`) haven't been compiled. On arm64, MSVC declares the
+  ACLE SHA intrinsics in its own `arm64_neon.h`, and whether it takes them as the shim
+  calls them is untested.
+- Linux on arm64 without the SHA instructions, where the check must fall back; the
+  fallback itself is tested with `GOOSE_HASH_PORTABLE=1`.
+
+Linux on arm64 has no Goose release archive, so there `scripts/goose.sh` builds Goose
+from source, which needs CMake. The benchmark has run on macOS only.
 
 ## Toolchain
 
@@ -82,7 +106,10 @@ table with the reason, and return to a release once one includes the fix.
 
 ## Test
 
-`scripts/test.sh` runs everything, and stops at the first step that fails:
+`scripts/test.sh` runs everything, and stops at the first step that fails. Steps 2 and
+4 run every check twice: on the rounds the package picks for the CPU, which are the
+SHA instructions where it has them, and with `GOOSE_HASH_PORTABLE=1`, on the Goose
+rounds, so the fallback stays tested wherever the instructions run.
 
 1. `goose check` of each root file under `test/` and `bench/`.
 2. `test/run_tests.py`: the tests under `test/<area>/` ([Run the tests](#run-the-tests)).
@@ -104,7 +131,18 @@ table with the reason, and return to a release once one includes the fix.
    once at 4,096; and `equal` on slices that are equal, differ in one bit, or differ in
    length. Input lengths cluster around one and two 64-byte blocks, and some run to
    100 KB; key lengths cluster around 32 and 64 bytes, and run to 200. The seed is 0;
-   `--cases N` and `--seed S` change them.
+   `--cases N` and `--seed S` change them. Each run first asks `build/digest` which
+   rounds it is on (`hash::sha_instructions()`), and fails if the answer isn't what
+   the CPU should give: the instructions on macOS on arm64, and on Linux where
+   `/proc/cpuinfo` lists `sha1` and `sha2` (arm64) or `sha_ni`, `sse4_1`, and `ssse3`
+   (x86-64). Elsewhere it prints the answer unchecked. `--expect instructions` sets
+   it for an emulator whose `/proc/cpuinfo` isn't the CPU it emulates:
+
+   ```sh
+   printf '#!/bin/sh\nexec qemu-x86_64 -cpu max build/digest\n' > /tmp/digest-qemu
+   chmod +x /tmp/digest-qemu
+   scripts/against_python.py /tmp/digest-qemu --expect instructions
+   ```
 
 ```sh
 scripts/test.sh
@@ -131,11 +169,13 @@ python3 test/run_tests.py -O0 pbkdf2      # one level only
 python3 test/run_tests.py --bless sha1    # rewrite test/expected/sha1.out from its output
 ```
 
-It compiles the tests to C in batches, a `goose --multi-test` run per batch, at `-O0`
-and `-O2`; builds each with the C compiler `goose toolchain` names (`CC` chooses
-another, as for `goose build --cc`), against the Goose runtime compiled once per level,
-into `build/test/`; and runs each as a process of its own, in parallel (`-j N`). A run
-passes when its stdout is the `.out` file, and it exits 0. Where
+Every test links the package's C, so the runner builds each with `goose build` at
+`-O0` and `-O2` (`CC` chooses the C compiler, as for `goose build --cc`), into
+`build/test/`, as Goose's own runner builds a fixture with C of its own. It runs each
+twice, as a process of its own, in parallel (`-j N`): once as the environment leaves
+it, labelled `-O2`, and once with `GOOSE_HASH_PORTABLE=1`, labelled `-O2 portable`.
+Both must print the same `.out` file. A run passes when its stdout is the `.out` file,
+and it exits 0. Where
 `test/expected/<name>.aborts` exists, the run must exit nonzero instead, and each
 nonblank line of `test/expected/<name>.stderr` must occur in its stderr. A file with
 `// error: <message>` lines is a fixture that must not compile: `goose --check` must
@@ -154,8 +194,15 @@ To try one case by hand:
 echo "sha256 616263" | build/digest   # SHA-256 of "abc"
 ```
 
-The release's `stdlib/` under `build/` needs no `exclude`: the repository has no
-`.build` sidecar, and the tests pass with the release unpacked there (2026-10-19).
+To try one case by hand on the Goose rounds, and to see which rounds run:
+
+```sh
+echo "sha256 616263" | GOOSE_HASH_PORTABLE=1 build/digest
+echo path | build/digest             # instructions, or portable
+```
+
+`hash.build` excludes `build/`, where `scripts/goose.sh` unpacks the release: its
+`stdlib/` would otherwise count as the package's Goose files.
 
 ## Benchmark
 
@@ -176,13 +223,14 @@ picks some.
 ```sh
 bench/build.sh
 bench/run.sh
-OPENSSL_armcap=0 bench/run.sh      # OpenSSL without the ARMv8 SHA instructions
+GOOSE_HASH_PORTABLE=1 OPENSSL_armcap=0 bench/run.sh   # both without the SHA instructions
 CASES=pbkdf2-4096 RUNS=20 bench/run.sh
 ```
 
-`OPENSSL_armcap=0` turns off OpenSSL's use of the CPU's SHA instructions on arm64, so
-it runs general-purpose code as the package does; on x86-64, `OPENSSL_ia32cap` does the
-same with another mask. `bench/build.sh` ends by naming the Goose compiler, the
+`GOOSE_HASH_PORTABLE=1` runs the package on its Goose rounds, and `OPENSSL_armcap=0`
+turns off OpenSSL's use of the CPU's SHA instructions on arm64, so both run
+general-purpose code; on x86-64, `OPENSSL_ia32cap` does the same with another mask.
+`bench/build.sh` ends by naming the Goose compiler, the
 OpenSSL, and the C compiler it built with. Record them with the results, with what
 `AGENTS.md` asks for, under the machine's own section of [results](results.md). When a
 new run replaces a machine's latest, move the old one to

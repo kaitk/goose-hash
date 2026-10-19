@@ -10,13 +10,21 @@ slices of different lengths. Lengths cluster around the 64-byte block, where
 padding takes one block or two and an HMAC key is hashed first; a few inputs run
 to 100 KB. Seeded for repeatability.
 
-    scripts/against_python.py [DIGEST] [--cases N] [--seed S]
+The cases run twice: on the rounds the package picks for this CPU, then with
+GOOSE_HASH_PORTABLE=1, on its own rounds. Each run first asks digest which
+rounds it is on, and fails if that isn't what the CPU should give: the SHA
+instructions on macOS on arm64, and on Linux where /proc/cpuinfo lists them.
+Elsewhere the answer is printed but not checked; --expect sets it, for an
+emulator whose CPU differs from the one /proc/cpuinfo describes.
+
+    scripts/against_python.py [DIGEST] [--cases N] [--seed S] [--expect ROUNDS]
 """
 
 import argparse
 import hashlib
 import hmac
 import os
+import platform
 import random
 import subprocess
 import sys
@@ -81,20 +89,58 @@ def main():
     ap.add_argument("digest", nargs="?", default=os.path.join(ROOT, "build", "digest"))
     ap.add_argument("--cases", type=int, default=300)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--expect", choices=("instructions", "portable"),
+                    help="the rounds the first run must be on, in place of the CPU's check")
     args = ap.parse_args()
     lines, want = zip(*cases(random.Random(args.seed), args.cases))
-    p = subprocess.run([args.digest], input="".join(l + "\n" for l in lines).encode(),
-                       capture_output=True)
-    if p.returncode != 0:
-        sys.exit(f"digest exited {p.returncode}: {p.stderr.decode(errors='replace')}")
-    got = p.stdout.decode().splitlines()
-    if len(got) != len(want):
-        sys.exit(f"digest answered {len(got)} cases of {len(want)}")
-    for line, g, w in zip(lines, got, want):
-        if g != w:
-            shown = line if len(line) < 200 else line[:200] + "..."
-            sys.exit(f"FAIL (seed {args.seed}) {shown}\n    got  {g}\n    want {w}")
-    print(f"against_python: {len(want)} cases ok")
+    lines, want = ("path",) + lines, (None,) + want
+    for portable in (False, True):
+        env = {k: v for k, v in os.environ.items() if k != "GOOSE_HASH_PORTABLE"}
+        if portable:
+            env["GOOSE_HASH_PORTABLE"] = "1"
+        p = subprocess.run([args.digest], input="".join(l + "\n" for l in lines).encode(),
+                           capture_output=True, env=env)
+        if p.returncode != 0:
+            sys.exit(f"digest exited {p.returncode}: {p.stderr.decode(errors='replace')}")
+        got = p.stdout.decode().splitlines()
+        if len(got) != len(want):
+            sys.exit(f"digest answered {len(got)} cases of {len(want)}")
+        path = got[0]
+        expected = "portable" if portable else args.expect or cpu_path()
+        if expected is not None and path != expected:
+            sys.exit(f"FAIL digest runs on the {path} rounds, expected {expected}")
+        for line, g, w in zip(lines[1:], got[1:], want[1:]):
+            if g != w:
+                shown = line if len(line) < 200 else line[:200] + "..."
+                sys.exit(f"FAIL (seed {args.seed}, {path}) {shown}\n    got  {g}\n    want {w}")
+        unchecked = "" if expected is not None else " (this platform's check is unknown)"
+        print(f"against_python: {len(want) - 1} cases ok on the {path} rounds{unchecked}")
+
+
+def cpu_path():
+    """The rounds digest should run on with GOOSE_HASH_PORTABLE unset,
+    "instructions" or "portable", or None where that isn't known here."""
+    machine = platform.machine().lower()
+    if sys.platform == "darwin":
+        return "instructions" if machine == "arm64" else None
+    if not sys.platform.startswith("linux"):
+        return None
+    if machine in ("aarch64", "arm64"):
+        field, need = "Features", {"sha1", "sha2"}
+    elif machine in ("x86_64", "amd64"):
+        field, need = "flags", {"sha_ni", "sse4_1", "ssse3"}
+    else:
+        return "portable"
+    try:
+        with open("/proc/cpuinfo", encoding="utf-8") as f:
+            info = f.read()
+    except OSError:
+        return None
+    for line in info.splitlines():
+        name, _, value = line.partition(":")
+        if name.strip() == field:
+            return "instructions" if need <= set(value.split()) else "portable"
+    return None
 
 
 if __name__ == "__main__":

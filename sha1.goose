@@ -15,9 +15,17 @@ fn sha1(data: const u8[:]) -> u8[20] {
     return out;
 }
 
-// Takes data, a whole number of 64-byte blocks, into the state h, with the
-// schedule kept 16 words at a time as in sha256_blocks.
+// Takes data, a whole number of 64-byte blocks, into the state h, on the CPU's
+// SHA instructions where it has them (shim/sha.c), else on sha1_rounds.
 fn sha1_blocks(state: u32[5]&, data: const u8[:]) {
+    if !sha1_blocks_c(state, data) { sha1_rounds(state, data); }
+}
+
+extern "gh_sha1_blocks" fn sha1_blocks_c(state: u32[5]&, data: const u8[:]) -> bool;
+
+// sha1_blocks in Goose, with the schedule kept 16 words at a time as in
+// sha256_rounds.
+fn sha1_rounds(state: u32[5]&, data: const u8[:]) {
     var w: u32[16] = [0; 16];
     var i = 0;
     while i + 64 <= data.len {

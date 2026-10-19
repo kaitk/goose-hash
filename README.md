@@ -2,8 +2,10 @@
 
 Cryptographic hashes for [Goose](https://github.com/aardappel/goose): SHA-1, SHA-256,
 HMAC-SHA-256, PBKDF2-HMAC-SHA-256, and a constant-time compare, bytes in and digests
-out. Pure Goose, with no C and no other package
-([architecture](docs/architecture.md)). Goose's stdlib has `base64` and `json`, and
+out. Goose, with no other package, and a small C shim that runs SHA-1 and SHA-256 on
+the CPU's SHA instructions, on ARMv8 and x86-64, until Goose's stdlib can; elsewhere
+the package's own Goose rounds run ([architecture](docs/architecture.md)). Goose's
+stdlib has `base64` and `json`, and
 `hash` for dictionaries, but no cryptographic hash. Its users are goose-http's
 WebSocket handshake (SHA-1), goose-postgres's SCRAM-SHA-256 login (PBKDF2 and HMAC),
 and a JWT verifier in goose-rest (HMAC-SHA-256).
@@ -22,12 +24,15 @@ through goose-tls ([decisions](docs/decisions.md)).
 | 🟢 | HMAC-SHA-256 | One-shot, and streaming from a keyed state that can be copied. |
 | 🟢 | PBKDF2-HMAC-SHA-256 | Any output length. For SCRAM-SHA-256. |
 | 🟢 | Constant-time compare | For checking a MAC. |
+| 🟢 | The CPU's SHA instructions | ARMv8's and x86-64's SHA-NI, through C, where the CPU has them; the Goose rounds elsewhere. `hash::sha_instructions()` says which run. |
+| 🟡 | The SHA instructions in Goose | The C goes once Goose's stdlib has them ([findings](docs/goose-findings.md#goose-has-no-sha-instructions)). |
+| 🟡 | Windows, and SHA-NI on real x86-64 hardware | Windows hasn't run; SHA-NI has run under QEMU's emulation only ([development](docs/development.md#where-it-has-run)). |
 | 🔴 | SHA-1 streaming, SHA-384, SHA-512, HMAC-SHA-1 | No user needs them yet. |
-| 🔴 | The CPU's SHA instructions | Goose can't express them ([findings](docs/goose-findings.md#goose-has-no-sha-instructions)). |
 
 Every function is checked against the published test vectors (NIST's examples, RFC
 4231, RFC 7914, and RFC 6455's handshake) and against Python's `hashlib` and `hmac` on
-random inputs ([development](docs/development.md#test)).
+random inputs, on the SHA instructions and on the Goose rounds
+([development](docs/development.md#test)).
 
 ## Quick start
 
@@ -60,7 +65,10 @@ fn main() {
 goose build hello.goose
 ```
 
-It needs no C compiler of its own and no other package.
+`goose build` compiles the package's C with the program, with the C compiler it
+already uses; the package needs no other package and no `-march` flag. Set
+`GOOSE_HASH_PORTABLE=1` in the environment to run the Goose rounds instead of the SHA
+instructions.
 
 ## API
 
@@ -79,6 +87,8 @@ function's contract.
   PBKDF2-HMAC-SHA-256's key; `iterations` is at least 1.
 - `hash::equal(a, b) -> bool`: compares two byte slices in a time that depends only on
   their lengths. Check a MAC with it, not with `==`.
+- `hash::sha_instructions() -> bool`: whether SHA-1 and SHA-256 run on the CPU's SHA
+  instructions in this process.
 
 ## Benchmarks
 
@@ -103,14 +113,17 @@ median of 10 runs[^1]:
 
 ## Credits
 
-No code is adopted from another library. The package implements FIPS 180-4, RFC 2104,
-and RFC 8018 from their text, and is tested with NIST's, RFC 4231's, RFC 7914's, and
-RFC 6455's vectors; [docs/credits.md](docs/credits.md) names what it takes from each.
+The C shim's rounds on the SHA instructions follow Jeffrey Walton's SHA-Intrinsics,
+which is in the public domain. The Goose code implements FIPS 180-4, RFC 2104, and RFC
+8018 from their text, and is tested with NIST's, RFC 4231's, RFC 7914's, and RFC
+6455's vectors; [docs/credits.md](docs/credits.md) names what it takes from each.
 
 ## Layout
 
 ```text
 hash.goose     the package's entry: equal, and what SHA-1 and SHA-256 share
+hash.build     the sidecar that has goose build compile shim/
+shim/sha.c     SHA-1's and SHA-256's rounds on the CPU's SHA instructions
 sha1.goose     SHA-1
 sha256.goose   SHA-256, one-shot and streaming
 hmac.goose     HMAC-SHA-256 and PBKDF2-HMAC-SHA-256

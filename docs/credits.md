@@ -1,12 +1,13 @@
 # Credits
 
-No code is adopted from another library. The package implements the standards below
-from their text, and this page names what it takes from each. OpenSSL is the
-benchmark's reference ([results](results.md)); when the package takes an idea from it
-or another implementation, this page names it.
+The package's Goose implements the standards below from their text, and its C follows
+one public-domain implementation; this page names what it takes from each. OpenSSL is
+the benchmark's reference ([results](results.md)); when the package takes an idea from
+it or another implementation, this page names it.
 
 | Source | What the package takes |
 |---|---|
+| [SHA-Intrinsics](https://github.com/noloader/SHA-Intrinsics), by Jeffrey Walton, public domain; itself based on code from Arm and from mbed TLS (Johannes Schneiders, Skip Hovsmith, Barry O'Rourke) for ARMv8, and from Intel and Sean Gulley's for miTLS for x86-64 | `shim/sha.c`'s rounds: `sha256-arm.c`, `sha1-arm.c`, `sha256-x86.c`, and `sha1-x86.c`'s block loops, taken as they are, with the blocks loaded a byte vector at a time and the state copied in and out, since it may be unaligned |
 | FIPS 180-4, *Secure Hash Standard* | SHA-1 and SHA-256: constants, initial values, rounds, and padding |
 | RFC 2104, *HMAC* | HMAC's inner and outer pads, and hashing a key longer than a block |
 | RFC 8018, *PKCS #5 v2.1*, §5.2 | PBKDF2: its blocks, their index, and the XOR of every iteration |

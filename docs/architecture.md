@@ -11,7 +11,9 @@ program can use it: goose-http for WebSocket's handshake, goose-postgres for
 SCRAM-SHA-256, and goose-rest for verifying a JWT. It holds hashes and MACs only.
 Ciphers, signatures, and key generation stay in OpenSSL, through goose-tls.
 
-The functions are Goose, not bindings to OpenSSL. Bytes go in as `u8[:]` slices and
+The functions are Goose, not bindings to OpenSSL. The one part in C is SHA-1's and
+SHA-256's compression function on the CPU's SHA instructions, which Goose can't express
+yet ([SHA instructions](#the-sha-instructions)). Bytes go in as `u8[:]` slices and
 digests come out as fixed arrays, `u8[20]` or `u8[32]`, which need no allocation and
 can be compared with `==` or sliced to a `u8[:]`.
 
@@ -48,23 +50,52 @@ can be compared with `==` or sliced to a `u8[:]`.
 
 ## SHA-1 and SHA-256
 
-Both run FIPS 180-4's compression function on 64-byte blocks, with the message
-schedule kept 16 words at a time in a ring rather than expanded to 64 or 80 words.
-Every index into the ring and the round constants is a round number masked to the
-array's size, so the Goose compiler removes the bounds checks from the rounds. One
-function pads the end of a message for both hashes: the last partial block, a `0x80`
-byte, and the length in bits, in one block or two.
+Both run FIPS 180-4's compression function on 64-byte blocks: `sha1_blocks` and
+`sha256_blocks` take any whole number of blocks, on the CPU's SHA instructions where it
+has them ([below](#the-sha-instructions)), and on the package's Goose rounds where it
+doesn't. The Goose rounds keep the message schedule 16 words at a time in a ring
+rather than expanded to 64 or 80 words. Every index into the ring and the round
+constants is a round number masked to the array's size, so the Goose compiler removes
+the bounds checks from the rounds. One function pads the end of a message for both
+hashes: the last partial block, a `0x80` byte, and the length in bits, in one block or
+two.
 
 The streaming state holds the eight hash words, the byte count, and up to 63 bytes
 that don't yet fill a block. `update` fills the held block first, then hashes whole
 blocks straight from the caller's slice, and holds the rest. `finish` pads a copy of
 the state, which is why the state can go on.
 
-The code runs on the CPU's general-purpose integer instructions. OpenSSL uses the
-SHA instructions of ARMv8 and x86-64 where the CPU has them, which Goose can't
-express ([findings](goose-findings.md#goose-has-no-sha-instructions)). With them
-turned off, OpenSSL's general-purpose code takes 4 to 22 percent less time than the
-package's ([results](results.md)).
+## The SHA instructions
+
+ARMv8 and x86-64 have instructions that run four rounds of SHA-256, or of SHA-1, at
+once, and update the message schedule. Goose can't express them
+([findings](goose-findings.md#goose-has-no-sha-instructions)), so the package carries
+them in C until Goose's stdlib does ([decisions](decisions.md)). `hash.build` has
+`goose build` compile `shim/sha.c` with the program. It holds SHA-1's and SHA-256's
+compression functions on ARMv8's `SHA1*` and `SHA256*` instructions and on x86-64's
+SHA-NI, which `sha1_blocks` and `sha256_blocks` call through `extern fn` with all of a
+call's blocks at once. Each C function that uses the instructions is compiled for
+them by a target attribute of its own, so the program needs no `-march` flag and runs
+on any CPU of its architecture.
+
+Whether the CPU has the instructions is checked once per process, on the first block
+hashed:
+
+| Platform | Check |
+|---|---|
+| macOS on arm64 | None: every Apple Silicon CPU has SHA-1 and SHA-256. |
+| Linux on arm64 | `getauxval(AT_HWCAP)` has `HWCAP_SHA1` and `HWCAP_SHA2`. |
+| Windows on arm64 | `IsProcessorFeaturePresent(PF_ARM_V8_CRYPTO_INSTRUCTIONS_AVAILABLE)`. |
+| x86-64 | `cpuid` leaf 7 has SHA (EBX bit 29), and leaf 1 has SSSE3 and SSE4.1. |
+| Anything else | None: the Goose rounds run. |
+
+Where the CPU lacks them, or the environment variable `GOOSE_HASH_PORTABLE` is set to
+anything but `0` when the process first hashes, the C returns at once and the Goose
+rounds run. `hash::sha_instructions()` says which, for the life of the process. The
+two give the same digests; the tests run on both ([development](development.md#test)).
+
+The C, like the Goose rounds, has no branch or memory index that depends on the data
+or a key.
 
 ## HMAC and PBKDF2
 
