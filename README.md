@@ -26,7 +26,8 @@ through goose-tls ([decisions](docs/decisions.md)).
 | 🟢 | Constant-time compare | For checking a MAC. |
 | 🟢 | The CPU's SHA instructions | ARMv8's and x86-64's SHA-NI, through C, where the CPU has them; the Goose rounds elsewhere. `hash::sha_instructions()` says which run. |
 | 🟡 | The SHA instructions in Goose | The C goes once Goose's stdlib has them ([findings](docs/goose-findings.md#goose-has-no-sha-instructions)). |
-| 🟡 | Windows, and SHA-NI on real x86-64 hardware | Windows hasn't run; SHA-NI has run under QEMU's emulation only ([development](docs/development.md#where-it-has-run)). |
+| 🟢 | Windows on x86-64, and SHA-NI on real hardware | Tested with MSVC, clang-cl, and clang, and on a Ryzen 7 5800X3D's SHA-NI ([development](docs/development.md#where-it-has-run), [results](docs/results.md#amd-ryzen-7-5800x3d-linux-in-wsl2-and-windows)). |
+| 🟡 | Windows on arm64 | Hasn't run ([development](docs/development.md#where-it-has-run)). |
 | 🔴 | SHA-1 streaming, SHA-384, SHA-512, HMAC-SHA-1 | No user needs them yet. |
 
 Every function is checked against the published test vectors (NIST's examples, RFC
