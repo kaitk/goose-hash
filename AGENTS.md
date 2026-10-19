@@ -18,7 +18,7 @@
   (PBKDF2), with test vectors from NIST's examples, RFC 4231 (HMAC-SHA-256), RFC 7914
   (PBKDF2-HMAC-SHA-256), and RFC 6455 (the WebSocket handshake). RFC 6070's vectors
   are PBKDF2-HMAC-SHA-1's, which the package doesn't have.
-- Its users: goose-http's WebSocket handshake (SHA-1, its task 052), goose-postgres's
+- Its users: goose-http's WebSocket handshake (SHA-1, its task 054), goose-postgres's
   SCRAM-SHA-256 login, and a JWT verifier in goose-rest (HMAC-SHA-256).
 - The language: the pinned Goose release's `docs/tutorial.md`, `docs/goose_spec.md`,
   `docs/stdlib.md`, and `docs/packages.md` (how a package declares the packages it

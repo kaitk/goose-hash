@@ -2,7 +2,7 @@
 
 Status: done (2026-10-19)
 
-The first API: what goose-http's WebSocket (its task 052), goose-postgres's SCRAM
+The first API: what goose-http's WebSocket (its task 054), goose-postgres's SCRAM
 login (its task 001), and a JWT verifier in goose-rest need.
 
 ## Steps
