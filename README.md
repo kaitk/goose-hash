@@ -34,7 +34,7 @@ random inputs ([development](docs/development.md#test)).
 ```goose
 import std;
 import base64;
-import hash from "github.com/kaitk/goose-hash@v0.1.0";
+import hash from "github.com/kaitk/goose-hash@v0.0.1";
 
 fn main() {
     let d = hash::sha256("abc");                       // u8[32]
@@ -60,9 +60,7 @@ fn main() {
 goose build hello.goose
 ```
 
-No tag is cut yet: until `v0.1.0` exists, import the package from a checkout with
-`import hash from "path/to/goose-hash/";`. It needs no C compiler of its own and no
-other package.
+It needs no C compiler of its own and no other package.
 
 ## API
 
