@@ -4,8 +4,8 @@
 Each test/<area>/<name>.goose is a program. Every one links the package's C,
 shim/sha.c, so the runner builds each with `goose build` at -O0 and at -O2, as
 Goose's runner builds a fixture with C of its own, and runs each twice, as a
-process of its own, all in parallel: once on the rounds the package picks for
-the CPU, and once with GOOSE_HASH_PORTABLE=1, on the package's own rounds, so
+process of its own, the tests in parallel: once on the rounds the package picks
+for the CPU, and once with GOOSE_HASH_PORTABLE=1, on the package's own rounds, so
 both stay tested. A run passes when its stdout is test/expected/<name>.out,
 every nonblank line of test/expected/<name>.stderr, if there is one, occurs in
 its stderr, and it exits 0, or not 0 where test/expected/<name>.aborts exists.
@@ -142,9 +142,15 @@ class Tests:
                 else:
                     self.report(f, "--check")
 
-    def build_and_run(self, test, level):
-        """(build failure, or None; [(label, exit code, stdout, stderr)] of the
-        runs, on the CPU's rounds and on the package's own)."""
+    def build_and_run(self, test):
+        """{level: (build failure, or None; [(label, exit code, stdout, stderr)]
+        of the runs, on the CPU's rounds and on the package's own)}. The levels
+        build one after another: goose build writes a program's C and object
+        file to the same paths under ~/.goose/build/prog/ at each, and MSVC
+        fails with C1083 when two builds open the object file at once."""
+        return {level: self.build_level(test, level) for level in self.levels}
+
+    def build_level(self, test, level):
         exe = OUT / f"O{level}" / (test.stem + EXE)
         exe.parent.mkdir(parents=True, exist_ok=True)
         cc = ["--cc", os.environ["CC"]] if os.environ.get("CC") else []
@@ -159,20 +165,20 @@ class Tests:
 
     def check_programs(self, programs):
         # The first build compiles the package's C, which every level shares.
-        # The rest find it built, rather than all compiling it at once.
-        first = self.build_and_run(programs[0], self.levels[0])
-        runs = {(programs[0], self.levels[0]): first}
-        for level in self.levels:
-            for f in programs:
-                if (f, level) not in runs:
-                    runs[f, level] = self.pool.submit(self.build_and_run, f, level)
-        for (f, level), r in sorted(runs.items(), key=lambda r: (str(r[0][0]), r[0][1])):
-            failure, results = r if isinstance(r, tuple) else r.result()
-            if failure is not None:
-                self.report(f, f"-O{level}", "goose build failed", failure)
-            else:
-                for result in results:
-                    self.check_run(f, level, *result)
+        # The rest find it built, rather than all compiling it at once, which
+        # MSVC fails with C1083. goose build compiles the C only for a program
+        # that calls it, which test/compare's don't, so a hash test goes first.
+        programs = sorted(programs, key=lambda p: p.parent.name == "compare")
+        runs = {programs[0]: self.build_and_run(programs[0])}
+        for f in programs[1:]:
+            runs[f] = self.pool.submit(self.build_and_run, f)
+        for f, r in sorted(runs.items(), key=lambda r: str(r[0])):
+            for level, (failure, results) in (r if isinstance(r, dict) else r.result()).items():
+                if failure is not None:
+                    self.report(f, f"-O{level}", "goose build failed", failure)
+                else:
+                    for result in results:
+                        self.check_run(f, level, *result)
 
     def check_run(self, test, level, label, code, out, err):
         expected = EXPECTED / f"{test.stem}.out"
