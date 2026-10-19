@@ -41,6 +41,6 @@ SHA on the instructions.
 - [ ] Every test vector and the check against Python pass with the instructions and
       with `GOOSE_HASH_PORTABLE=1`, and the check confirms which rounds ran
 - [ ] `scripts/test.sh` passes on macOS on arm64, and on Linux on arm64 and x86-64
-- [ ] The speed measured, in `docs/results.md` and `docs/results-history.md`
+- [x] The speed measured, in `docs/results.md` and `docs/results-history.md`
 - [ ] What wasn't verified, such as MSVC and SHA-NI on real hardware, said plainly in
       `docs/development.md`

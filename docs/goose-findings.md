@@ -36,6 +36,9 @@ let t1 = h + (rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25)) + (g ^ (e & (f ^ g))) + k[
 let t2 = (rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22)) + ((a & bb) | (c & (a | bb)));
 ```
 
-Workaround: the package runs FIPS 180-4's rounds on general-purpose instructions. A
-WebSocket handshake's SHA-1 then takes 0.3 µs, and a SCRAM login's PBKDF2 1.9 ms
-against OpenSSL's 0.47 ms.
+Workaround: `shim/sha.c` runs the rounds on the instructions in C, through
+`hash.build` and `extern fn` ([decisions](decisions.md)), with the package's Goose
+rounds as the fallback. On the M1 Pro, SHA-256 of 1 MB then runs at 2,146 MB/s, and a
+SCRAM login's PBKDF2 takes 0.36 ms, where the Goose rounds take 1.79 ms
+([results](results.md)). The finding stays open until Goose can reach the
+instructions itself (task 003), when the C goes.

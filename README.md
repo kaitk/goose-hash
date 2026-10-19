@@ -99,17 +99,17 @@ The package is measured against OpenSSL's libcrypto, through the same loop, and
 On an Apple M1 Pro under macOS 26.3.1, with Goose `v2026.2` and OpenSSL 4.0.3, the
 median of 10 runs[^1]:
 
-| Case | goose | OpenSSL | OpenSSL without SHA instructions |
-|---|---:|---:|---:|
-| SHA-1 of 60 bytes, a WebSocket key | 295 ns | 150 ns | 253 ns |
-| SHA-256 of 64 bytes | 441 ns | 132 ns | 417 ns |
-| SHA-256 of 1 MB | 287 MB/s | 2,343 MB/s | 375 MB/s |
-| PBKDF2-HMAC-SHA-256, 4,096 iterations | 1.86 ms | 0.47 ms | 1.59 ms |
+| Case | goose | OpenSSL | goose without SHA instructions | OpenSSL without them |
+|---|---:|---:|---:|---:|
+| SHA-1 of 60 bytes, a WebSocket key | 56 ns | 147 ns | 291 ns | 247 ns |
+| SHA-256 of 64 bytes | 51 ns | 126 ns | 425 ns | 406 ns |
+| SHA-256 of 1 MB | 2,146 MB/s | 2,413 MB/s | 302 MB/s | 382 MB/s |
+| PBKDF2-HMAC-SHA-256, 4,096 iterations | 0.36 ms | 0.46 ms | 1.79 ms | 1.57 ms |
 
-[^1]: OpenSSL uses the CPU's SHA-1 and SHA-256 instructions, which Goose can't
-    express; the last column turns them off with `OPENSSL_armcap=0`. The goose
-    column is from the first run; the second gave 296 ns, 432 ns, 294 MB/s, and
-    1.82 ms.
+[^1]: Both use the CPU's SHA-1 and SHA-256 instructions as built; the last two
+    columns turn them off, with `GOOSE_HASH_PORTABLE=1` and `OPENSSL_armcap=0`. On
+    small inputs OpenSSL's time is mostly its per-call setup
+    ([results](docs/results.md)).
 
 ## Credits
 
