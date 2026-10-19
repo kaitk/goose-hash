@@ -17,6 +17,13 @@ with its reason and the trade-off that matters.
 - **Hashes and MACs only (2026-10-19).** Ciphers, signatures, and key generation stay
   in OpenSSL, through goose-tls, so the package never becomes a cryptography library
   of its own.
+- **Benchmarked against the installed OpenSSL (2026-10-19).** `bench/ref.c` links the
+  machine's OpenSSL, 3 or later, and `bench/run.sh` runs its `openssl speed`, the
+  reference task 001 names; each result records the version. Rejected: building
+  OpenSSL at a pinned tag, as goose-compress builds its libraries, which takes minutes
+  and Perl on each machine, for code whose speed comes mostly from the CPU's SHA
+  instructions. The trade-off: two machines' results may name
+  different OpenSSL versions.
 
 ## Open
 

@@ -3,17 +3,21 @@
 ## Project context
 
 - What this is, its API, and its pin: `README.md`
-- The decisions, each dated with its reason and trade-off: `docs/decisions.md`. A new
-  decision goes there. `docs/architecture.md`, written with the first code, describes
-  how the package works for its users and changes with each decision that changes it
-- Toolchain, local setup, and tests: `docs/development.md`
+- How it works, for users: `docs/architecture.md`; the decisions, each dated with its
+  reason and trade-off: `docs/decisions.md`. A new decision goes in `docs/decisions.md`,
+  and `docs/architecture.md` changes with it where it describes what changed
+- Toolchain, local setup, tests, and benchmarks: `docs/development.md`
 - Goose compiler and stdlib gaps found here: `docs/goose-findings.md`
+- Benchmark results: `docs/results.md` (each machine's latest run) and
+  `docs/results-history.md` (earlier runs and each change's measurements)
+- What the package follows, and from where: `docs/credits.md`
 - Task tracking: `tasks/` (see `tasks/README.md`)
 - Substantial doc drafts and requested prose reviews:
   `.claude/skills/google-style/SKILL.md`; other writing follows "Writing" below
 - The algorithms: FIPS 180-4 (SHA-1, SHA-256), RFC 2104 (HMAC), and RFC 8018
-  (PBKDF2), with test vectors from NIST's examples, RFC 4231 (HMAC-SHA-256), and
-  RFC 6070 and RFC 7914 (PBKDF2).
+  (PBKDF2), with test vectors from NIST's examples, RFC 4231 (HMAC-SHA-256), RFC 7914
+  (PBKDF2-HMAC-SHA-256), and RFC 6455 (the WebSocket handshake). RFC 6070's vectors
+  are PBKDF2-HMAC-SHA-1's, which the package doesn't have.
 - Its users: goose-http's WebSocket handshake (SHA-1, its task 052), goose-postgres's
   SCRAM-SHA-256 login, and a JWT verifier in goose-rest (HMAC-SHA-256).
 - The language: the pinned Goose release's `docs/tutorial.md`, `docs/goose_spec.md`,
@@ -65,11 +69,21 @@ their machine.
 
 ## Goose, with no C
 
-- The package is Goose with no C, and imports no other package.
+- The package is Goose with no C, and imports no other package. Other languages belong
+  in `bench/` only, as the language of the library the package is measured against: C
+  for OpenSSL's libcrypto.
 - Hashes and MACs only. Ciphers, signatures, and key generation are OpenSSL's, through
   goose-tls ([decisions](docs/decisions.md)).
 - Nothing branches or indexes memory on secret data. SHA and HMAC don't; comparing a
   MAC with an expected one goes through the package's constant-time compare.
+
+## Benchmarks
+
+- Every number comes with how it was measured: machine, OS, compiler, command, OpenSSL
+  version, and run count. A result without them doesn't go in a doc.
+- OpenSSL runs as installed, with the CPU's SHA instructions, and again with them off
+  (`OPENSSL_armcap=0` on arm64), so the gap the instructions make shows apart from the
+  rest. Losses are recorded as plainly as wins.
 
 ## Code conventions
 
