@@ -65,9 +65,11 @@ _Static_assert(sizeof(gh_bytes) == sizeof(void *) + 8, "a Goose slice is { data,
 
 /* The check runs once; threads that race to it compute the same answer. */
 #if defined(_MSC_VER) && !defined(__clang__)
-static volatile int32_t cached; /* 0: not checked yet, 1: no, 2: yes */
-#define LOAD(p) (*(p))
-#define STORE(p, v) (*(p) = (v))
+/* Interlocked, not a plain volatile, which ARM64's /volatile:iso doesn't order. */
+#include <intrin.h>
+static volatile long cached; /* 0: not checked yet, 1: no, 2: yes */
+#define LOAD(p) _InterlockedCompareExchange((p), 0, 0)
+#define STORE(p, v) _InterlockedExchange((p), (v))
 #else
 static int32_t cached;
 #define LOAD(p) __atomic_load_n(p, __ATOMIC_RELAXED)
