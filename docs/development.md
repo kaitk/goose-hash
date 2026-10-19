@@ -41,6 +41,9 @@ What hasn't been checked:
   way to cause. On Linux, `random_bytes` needs kernel 3.17 or later, with glibc 2.25
   or musl 1.1.20 or later; an older kernel makes it abort
   ([architecture](architecture.md#random-bytes)).
+- `shim/sha.c`'s MSVC branch of the cached CPU check, `_InterlockedCompareExchange`
+  and `_InterlockedExchange`, which only review has checked: MSVC hasn't compiled it
+  since (2026-10-19).
 - Linux on arm64 without the SHA instructions, where the check must fall back; the
   fallback itself is tested with `GOOSE_HASH_PORTABLE=1`.
 
