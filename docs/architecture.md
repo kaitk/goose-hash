@@ -117,11 +117,12 @@ calls `shim/random.c`, which asks the OS directly:
 |---|---|
 | Windows | `BCryptGenRandom` with `BCRYPT_USE_SYSTEM_PREFERRED_RNG`, from `bcrypt.lib`, which `hash.build` links. |
 | macOS, Linux, and other POSIX systems | `getentropy`, 256 bytes a call. On Linux it blocks until the kernel's pool is first seeded, early in boot, and never after. |
-| Linux before 3.17, which lacks `getrandom` | `/dev/urandom`, read only when `getentropy` fails with `ENOSYS`. |
 
-Any other failure, and `/dev/urandom` failing to open or read, makes the C return
-`false`, and `random_bytes` aborts. Nothing falls back to a clock or a PRNG. Linux's
-`getentropy` needs glibc 2.25 or musl 1.1.20, or later.
+Any failure makes the C return `false`, and `random_bytes` aborts. Nothing falls back
+to `/dev/urandom`, which early in boot can return bytes from a pool not yet seeded, or
+to a clock or a PRNG. On Linux, `random_bytes` needs kernel 3.17 or later, for
+`getrandom`, and glibc 2.25 or musl 1.1.20 or later, for `getentropy`; on an older
+kernel, `getentropy` fails with `ENOSYS`, and the program aborts.
 
 ## HMAC and PBKDF2
 

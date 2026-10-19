@@ -44,8 +44,7 @@ with its reason and the trade-off that matters.
   OS's cryptographically secure random bytes. `hash::random_bytes(out)` fills a slice
   through `shim/random.c`: `BCryptGenRandom` with `BCRYPT_USE_SYSTEM_PREFERRED_RNG` on
   Windows, linked through `hash.build`'s `c_libs_windows`, and `getentropy` elsewhere,
-  256 bytes a call, reading `/dev/urandom` only where the kernel lacks `getrandom`.
-  Reason: goose-postgres's SCRAM-SHA-256 login needs a client nonce that can't be
+  256 bytes a call. Reason: goose-postgres's SCRAM-SHA-256 login needs a client nonce that can't be
   predicted, and Goose's `random_seed()` is for seeding `rng`, not for secrets. At
   `v2026.2` (`3ee3871`) and on master at `4c58784`, the runtime's `gs_os_random_u64`
   reads 8 bytes from `/dev/urandom` on POSIX, and on Windows, or where that file can't
@@ -61,6 +60,16 @@ with its reason and the trade-off that matters.
   leaving each caller to bring its own C. The trade-off: one more C file for the
   package to keep correct on each OS, and `bcrypt.lib` linked into every Windows
   program that imports the package.
+- **No `/dev/urandom` fallback; Linux 3.17 or later (2026-10-19).** This replaces the
+  part of the decision above that read `/dev/urandom` where `getentropy` fails with
+  `ENOSYS`, on a Linux kernel before 3.17, which lacks `getrandom`. `ENOSYS` now fails
+  like any other error, and `random_bytes` aborts. Reason: early in boot,
+  `/dev/urandom` can return bytes from a pool not yet seeded, without saying so, where
+  `getrandom` blocks until it is seeded (a security review, 2026-10-19). So
+  `random_bytes` needs Linux 3.17 or later, with glibc 2.25 or musl 1.1.20 or later
+  for `getentropy`. Rejected: keeping the fallback and polling `/dev/random` first to
+  wait for the seed, which is more C, for kernels long out of support. The trade-off:
+  a program that calls `random_bytes` on a kernel before 3.17 aborts.
 
 ## Open
 

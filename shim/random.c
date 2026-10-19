@@ -8,10 +8,11 @@
 
    - Windows: BCryptGenRandom with the system-preferred RNG (bcrypt.lib).
    - Elsewhere: getentropy, at most 256 bytes a call, as POSIX 2024 allows.
-     Where the C library has it but the kernel lacks getrandom (glibc on Linux
-     before 3.17), it fails with ENOSYS, and only then is /dev/urandom read. */
+     On a Linux kernel before 3.17, which lacks getrandom, it fails with
+     ENOSYS like any other error: /dev/urandom isn't read instead, since early
+     in boot it can return bytes from a pool not yet seeded. */
 #if defined(__linux__)
-#define _DEFAULT_SOURCE 1 /* O_CLOEXEC, getentropy */
+#define _DEFAULT_SOURCE 1 /* getentropy */
 #endif
 
 #include <stdbool.h>
@@ -22,8 +23,6 @@
 #include <windows.h>
 #include <bcrypt.h>
 #else
-#include <errno.h>
-#include <fcntl.h>
 #include <unistd.h>
 #include <sys/random.h>
 #endif
@@ -32,26 +31,6 @@
 typedef struct { uint8_t *data; int64_t len; } gh_mut_bytes;
 #pragma pack(pop)
 _Static_assert(sizeof(gh_mut_bytes) == sizeof(void *) + 8, "a Goose slice is { data, len }, packed");
-
-#if !defined(_WIN32)
-static bool from_urandom(uint8_t *p, int64_t n) {
-    int fd;
-    do { fd = open("/dev/urandom", O_RDONLY | O_CLOEXEC); } while (fd < 0 && errno == EINTR);
-    if (fd < 0) return false;
-    while (n > 0) {
-        ssize_t r = read(fd, p, n > 65536 ? 65536 : (size_t)n);
-        if (r < 0 && errno == EINTR) continue;
-        if (r <= 0) {
-            close(fd);
-            return false;
-        }
-        p += r;
-        n -= r;
-    }
-    close(fd);
-    return true;
-}
-#endif
 
 bool gh_random_bytes(gh_mut_bytes out) {
     uint8_t *p = out.data;
@@ -68,7 +47,7 @@ bool gh_random_bytes(gh_mut_bytes out) {
 #else
     while (n > 0) {
         size_t k = n > 256 ? 256 : (size_t)n;
-        if (getentropy(p, k) != 0) return errno == ENOSYS && from_urandom(p, n);
+        if (getentropy(p, k) != 0) return false;
         p += k;
         n -= k;
     }

@@ -37,9 +37,10 @@ What hasn't been checked:
   linked through `c_libs_windows`, has been compiled and linked into a small C program
   by `zig cc` 0.17.0 for `x86_64-windows-gnu`, and compiled for `aarch64-windows-gnu`,
   against MinGW-w64's headers, but not run, and not compiled by MSVC.
-- `random_bytes` reading `/dev/urandom`, which happens only on a Linux kernel older
-  than 3.17, and its abort when the OS's source fails, which no supported OS gives
-  a way to cause.
+- `random_bytes`'s abort when the OS's source fails, which no supported OS gives a
+  way to cause. On Linux, `random_bytes` needs kernel 3.17 or later, with glibc 2.25
+  or musl 1.1.20 or later; an older kernel makes it abort
+  ([architecture](architecture.md#random-bytes)).
 - Linux on arm64 without the SHA instructions, where the check must fall back; the
   fallback itself is tested with `GOOSE_HASH_PORTABLE=1`.
 
