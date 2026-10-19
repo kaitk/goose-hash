@@ -1,0 +1,6 @@
+the same 32 bytes are equal: ok
+two empty slices are equal: ok
+a difference in the first byte is unequal: ok
+a difference in the last byte is unequal: ok
+a prefix is unequal: ok
+an empty slice and a byte are unequal: ok
