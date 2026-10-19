@@ -34,6 +34,7 @@ fn sha256_reset(s: Sha256&) {
 }
 
 fn sha256_update(s: Sha256&, data: const u8[:]) {
+    sha_check_length(s.total, data.len);
     s.total += data.len as! u64;
     var at = 0;
     if s.nbuf > 0 {

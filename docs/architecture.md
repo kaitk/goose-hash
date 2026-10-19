@@ -25,6 +25,9 @@ can be compared with `==` or sliced to a `u8[:]`.
   WebSocket's `Sec-WebSocket-Accept` (RFC 6455 §4.2.2), which requires it. SHA-1 is
   broken for collision resistance; don't use it for anything that needs security.
 - `hash::sha256(data) -> u8[32]`: SHA-256 (FIPS 180-4 §6.2), one-shot.
+- Both take a message shorter than 2^61 bytes, as FIPS 180-4 allows. A longer one,
+  whether one-shot or a stream whose total reaches 2^61 bytes, aborts the program
+  before it is hashed.
 - `hash::Sha256`: a SHA-256 computation in pieces. `var s = hash::Sha256 { .. };`
   starts one.
   - `hash::sha256_update(s, data)` adds `data`. How the input is split across calls
@@ -43,9 +46,13 @@ can be compared with `==` or sliced to a `u8[:]`.
   - `hash::hmac_sha256_update(m, data)` and `hash::hmac_sha256_finish(m) -> u8[32]`
     work as for `Sha256`; `finish` leaves `m` as it was.
 - `hash::pbkdf2_sha256(out, password, salt, iterations)`: PBKDF2-HMAC-SHA-256 (RFC
-  8018 §5.2). It fills the `u8[:]` slice `out`, of any length, with the derived key.
-  `iterations` must be at least 1; a lower count aborts the program. SCRAM-SHA-256's
-  `SaltedPassword` (RFC 7677) is 32 bytes of it.
+  8018 §5.2). It fills the `u8[:]` slice `out`, up to (2^32 − 1) × 32 bytes long,
+  with the derived key, and `out` may overlap `salt`. `iterations` must be at least
+  1. A lower count, or a longer `out`, aborts the program before anything is
+  derived. The time it takes grows with `iterations`, which has no upper limit: a
+  caller that takes the count from an untrusted source, such as a server's SCRAM
+  challenge, must cap it. SCRAM-SHA-256's `SaltedPassword` (RFC 7677) is 32 bytes of
+  it.
 - `hash::equal(a, b) -> bool`: whether two byte slices hold the same bytes, in a time
   that depends on their lengths only. Compare a received MAC with the expected one
   with it, not with `==`, which returns at the first difference.

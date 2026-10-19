@@ -46,6 +46,17 @@ fn hmac_sha256(key: const u8[:], data: const u8[:]) -> u8[32] {
     return hmac_sha256_finish(m);
 }
 
+// RFC 8018 §5.2's longest key: 2^32 - 1 blocks of 32 bytes, as the block
+// index is 32 bits.
+let PBKDF2_SHA256_MAX_BYTES: i64 = 0xFFFFFFFF * 32;
+
+// Aborts if a key of `n` bytes is longer than PBKDF2_SHA256_MAX_BYTES.
+fn pbkdf2_sha256_check_length(n: i64) {
+    guard n <= PBKDF2_SHA256_MAX_BYTES else {
+        abort("hash::pbkdf2_sha256: the key must be at most (2^32 - 1) * 32 bytes");
+    }
+}
+
 // Fills `out` with the key PBKDF2-HMAC-SHA-256 derives from password and salt
 // in `iterations` rounds, at least 1. SCRAM-SHA-256's SaltedPassword (RFC
 // 7677) is 32 bytes of it.
@@ -58,6 +69,7 @@ fn hmac_sha256(key: const u8[:], data: const u8[:]) -> u8[32] {
 // `out` may overlap `salt`.
 fn pbkdf2_sha256(out: u8[:], password: const u8[:], salt: const u8[:], iterations: i64) {
     assert(iterations >= 1);
+    pbkdf2_sha256_check_length(out.len);
     let key = hmac_sha256_start(password);
     var salted = key;
     hmac_sha256_update(salted, salt);

@@ -5,6 +5,7 @@ namespace hash;
 import std;
 
 fn sha1(data: const u8[:]) -> u8[20] {
+    sha_check_length(0, data.len);
     var h: u32[5] = [0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476, 0xC3D2E1F0];
     let whole = data.len & ~63;
     sha1_blocks(h, data[..whole]);

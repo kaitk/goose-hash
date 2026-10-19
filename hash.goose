@@ -57,3 +57,15 @@ fn final_blocks(tail: const u8[:], total: u64) -> u8[128], i64 {
     for j in 8 { out[n - 1 - j] = (bits >> (8 * j)) as! u8; }
     return out, n;
 }
+
+// SHA-1 and SHA-256 take a message shorter than 2^64 bits (FIPS 180-4 §5.1.1):
+// 2^61 bytes.
+let SHA_MAX_BYTES: u64 = 0x2000000000000000;
+
+// Aborts unless a message of `total` bytes, fewer than SHA_MAX_BYTES, can take
+// `more` bytes and stay below it, before anything is hashed.
+fn sha_check_length(total: u64, more: i64) {
+    guard (more as! u64) < SHA_MAX_BYTES - total else {
+        abort("hash: a SHA-1 or SHA-256 message must be shorter than 2^61 bytes");
+    }
+}

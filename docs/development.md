@@ -136,11 +136,14 @@ rounds, so the fallback stays tested wherever the instructions run.
    message, and a million `a`; SHA-1 against RFC 6455's handshake example, through
    stdlib's `base64`; and streaming SHA-256 against one-shot, with the million `a` fed
    in pieces of 1 to 4,096 bytes, and inputs of 0 to 200 bytes split in two at every
-   offset and fed a byte at a time; and SHA-256 and HMAC-SHA-256 states that sit
-   unaligned after a byte in a struct ([sanitizers](#run-the-tests)). `test/hmac/` checks RFC 4231's cases 1 to 7, and
-   case 7 split at every offset from one keyed state. `test/pbkdf2/` checks RFC 7914's
-   two PBKDF2-HMAC-SHA-256 vectors, and that a 40-byte key is a prefix of a 64-byte
-   one. `test/compare/` checks `equal` on equal slices, a difference at either end,
+   offset and fed a byte at a time; SHA-256 and HMAC-SHA-256 states that sit
+   unaligned after a byte in a struct ([sanitizers](#run-the-tests)); and the abort
+   at 2^61 bytes, on a stream state set just below it and on the check `sha1` calls.
+   `test/hmac/` checks RFC 4231's cases 1 to 7, and case 7 split at every offset from
+   one keyed state. `test/pbkdf2/` checks RFC 7914's two PBKDF2-HMAC-SHA-256 vectors;
+   that a 40-byte key is a prefix of a 64-byte one; that an output whose first bytes
+   are the salt gives the key a salt of its own does; and the abort on a key longer
+   than (2^32 − 1) × 32 bytes, through the length check. `test/compare/` checks `equal` on equal slices, a difference at either end,
    and different lengths. `test/random/` checks that `random_bytes` fills exactly the
    slice given, that two draws of 32 bytes differ, that 1,000 draws of 64 bytes and
    one of 70,000 bytes each hold all 256 byte values, that the 70,000 bytes have no

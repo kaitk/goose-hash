@@ -92,7 +92,9 @@ function's contract.
   `hmac_sha256_finish(m) -> u8[32]`: HMAC-SHA-256 in pieces. A copy of a fresh state
   MACs another message under the same key without hashing the key again.
 - `hash::pbkdf2_sha256(out, password, salt, iterations)`: fills `out` with
-  PBKDF2-HMAC-SHA-256's key; `iterations` is at least 1.
+  PBKDF2-HMAC-SHA-256's key; `iterations` is at least 1. Its time grows with
+  `iterations`, which has no upper limit, so cap a count that comes from an untrusted
+  source, such as a server's SCRAM challenge, before calling it.
 - `hash::equal(a, b) -> bool`: compares two byte slices in a time that depends only on
   their lengths. Check a MAC with it, not with `==`.
 - `hash::sha_instructions() -> bool`: whether SHA-1 and SHA-256 run on the CPU's SHA
