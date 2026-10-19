@@ -46,5 +46,5 @@ for the latest measurements.
 
 ## Order
 
-Task 001 is the only task so far. goose-http's WebSocket (its task 052) and
-goose-postgres's task 001 wait on it.
+No task is open. Task 001, archived, built what goose-http's WebSocket (its task 052)
+and goose-postgres's task 001 waited on.
