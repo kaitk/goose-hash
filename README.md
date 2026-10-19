@@ -39,7 +39,7 @@ random inputs, on the SHA instructions and on the Goose rounds
 ```goose
 import std;
 import base64;
-import hash from "github.com/kaitk/goose-hash@v0.0.1";
+import hash from "github.com/kaitk/goose-hash@v0.0.2";
 
 fn main() {
     let d = hash::sha256("abc");                       // u8[32]

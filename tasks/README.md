@@ -46,9 +46,9 @@ for the latest measurements.
 
 ## Order
 
-Task 004 puts SHA-1 and SHA-256 on the CPU's SHA instructions through a C shim, the
-largest part of the gap to OpenSSL, before task 002 tunes the portable rounds, which
-remain the fallback, toward the fastest implementations. Task 003 takes the
-instructions to Goose's stdlib as a proposal, with task 004's C as its prototype; once
-Goose has them, the shim goes. Task 001, archived, built what goose-http's WebSocket
-(its task 054) and goose-postgres's task 001 waited on.
+Task 002 tunes the portable rounds, which remain the fallback, toward the fastest
+implementations. Task 003 takes the CPU's SHA instructions to Goose's stdlib as a
+proposal, with task 004's C as its prototype; once Goose has them, the shim goes.
+Archived: task 001 built what goose-http's WebSocket (its task 054) and
+goose-postgres's task 001 waited on, and task 004 put SHA-1 and SHA-256 on the CPU's
+SHA instructions through a C shim, the largest part of the gap to OpenSSL.

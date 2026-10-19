@@ -1,6 +1,6 @@
 # 004: SHA-1 and SHA-256 on the CPU's SHA instructions, through C
 
-Status: in-progress (decided 2026-10-19)
+Status: done (2026-10-19)
 
 The CPU's SHA instructions make OpenSSL's SHA-256 8 times faster than the package's
 on 1 MB, and its PBKDF2 at 4,096 iterations 4 times faster
@@ -36,11 +36,12 @@ SHA on the instructions.
 
 - [x] The decision recorded, and `AGENTS.md`, the README, `docs/architecture.md`, and
       `tasks/README.md` updated
-- [ ] `shim/sha.c` with SHA-1 and SHA-256 on ARMv8 and x86-64 SHA-NI, credited in
+- [x] `shim/sha.c` with SHA-1 and SHA-256 on ARMv8 and x86-64 SHA-NI, credited in
       `docs/credits.md`
-- [ ] Every test vector and the check against Python pass with the instructions and
+- [x] Every test vector and the check against Python pass with the instructions and
       with `GOOSE_HASH_PORTABLE=1`, and the check confirms which rounds ran
-- [ ] `scripts/test.sh` passes on macOS on arm64, and on Linux on arm64 and x86-64
+- [x] `scripts/test.sh` passes on macOS on arm64, and on Linux on arm64 and x86-64
+      (x86-64 under Rosetta, without SHA-NI, and its programs again under QEMU with it)
 - [x] The speed measured, in `docs/results.md` and `docs/results-history.md`
-- [ ] What wasn't verified, such as MSVC and SHA-NI on real hardware, said plainly in
+- [x] What wasn't verified, such as MSVC and SHA-NI on real hardware, said plainly in
       `docs/development.md`
