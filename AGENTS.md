@@ -18,6 +18,9 @@
   (PBKDF2), with test vectors from NIST's examples, RFC 4231 (HMAC-SHA-256), RFC 7914
   (PBKDF2-HMAC-SHA-256), and RFC 6455 (the WebSocket handshake). RFC 6070's vectors
   are PBKDF2-HMAC-SHA-1's, which the package doesn't have.
+- The C shim's instructions: Arm's ACLE (`arm_neon.h`, `vsha256hq_u32` and kin) and
+  Intel's intrinsics (`immintrin.h`, `_mm_sha256rnds2_epu32` and kin); the rounds
+  follow the public-domain SHA-Intrinsics (`docs/credits.md`).
 - Its users: goose-http's WebSocket handshake (SHA-1, its task 054), goose-postgres's
   SCRAM-SHA-256 login, and a JWT verifier in goose-rest (HMAC-SHA-256).
 - The language: the pinned Goose release's `docs/tutorial.md`, `docs/goose_spec.md`,
@@ -67,11 +70,16 @@ their machine.
   references into growing arrays, `return ... from` for errors, untyped parameters for
   generics.
 
-## Goose, with no C
+## Goose, and C only for the SHA instructions
 
-- The package is Goose with no C, and imports no other package. Other languages belong
-  in `bench/` only, as the language of the library the package is measured against: C
-  for OpenSSL's libcrypto.
+- The package is Goose, and imports no other package. Its one exception is
+  `shim/sha.c`, built through `hash.build`: SHA-1's and SHA-256's compression functions
+  on the CPU's SHA instructions, which Goose can't express yet
+  ([decisions](docs/decisions.md), 2026-10-19). Nothing else goes in C. The Goose
+  rounds stay as the fallback, tested with `GOOSE_HASH_PORTABLE=1`, and the C goes
+  away once Goose's stdlib has SHA on the instructions (task 003).
+- Other languages belong in `bench/` only, as the language of the library the package
+  is measured against: C for OpenSSL's libcrypto.
 - Hashes and MACs only. Ciphers, signatures, and key generation are OpenSSL's, through
   goose-tls ([decisions](docs/decisions.md)).
 - Nothing branches or indexes memory on secret data. SHA and HMAC don't; comparing a

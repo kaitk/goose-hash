@@ -16,9 +16,10 @@ The gap has two parts, which need different fixes:
   of Goose's output, and should close here.
 - **With them**, OpenSSL is 2 to 8 times faster, and Goose has no way to emit
   `SHA256H` or `SHA256RNDS2` ([findings](../docs/goose-findings.md#goose-has-no-sha-instructions)).
-  The package and its benchmarks have no C, so that part needs Goose to offer the
-  instructions. This task measures how much of the gap it is; task 003 takes the
-  proposal to Goose with those numbers.
+  Task 004 closes that part for now with a C shim on the instructions, and task 003
+  takes them to Goose's stdlib. This task compares the shim with the fastest
+  implementations on the instructions too, and tunes the portable rounds, which stay
+  the fallback where the CPU lacks them.
 
 ## Steps
 

@@ -24,6 +24,21 @@ with its reason and the trade-off that matters.
   and Perl on each machine, for code whose speed comes mostly from the CPU's SHA
   instructions. The trade-off: two machines' results may name
   different OpenSSL versions.
+- **The CPU's SHA instructions, in C for now (2026-10-19).** This replaces "Goose, with
+  no C" for one purpose: the package may carry C for what Goose can't express yet,
+  the CPU's SHA instructions. `shim/sha.c` holds SHA-1's and SHA-256's compression
+  functions on ARMv8's SHA instructions and x86-64's SHA-NI, and `hash.build` compiles
+  it with the program, as goose-sqlite's and goose-tls's sidecars do. Goose keeps its
+  portable rounds as the fallback where the CPU lacks the instructions, and they stay
+  tested. Reason: the instructions are most of the gap to OpenSSL, 8 times on SHA-256
+  of 1 MB and 4 times on SCRAM's PBKDF2 ([results](results.md)), and goose-http's
+  WebSocket and goose-postgres's SCRAM login shouldn't wait for Goose's stdlib to
+  offer them (task 003). The C goes away when Goose's stdlib has SHA on the
+  instructions, and serves as task 003's prototype meanwhile. Rejected: waiting for
+  Goose, which leaves the package 4 to 8 times slower than OpenSSL for an unknown
+  time; and taking SHA from OpenSSL through goose-tls, rejected above. The trade-off:
+  a program that imports the package now needs a C compiler for its C, which
+  `goose build` needs anyway, and the C is the package's to keep correct on each CPU.
 
 ## Open
 

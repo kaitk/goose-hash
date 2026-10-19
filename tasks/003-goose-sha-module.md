@@ -4,10 +4,13 @@ Status: todo (asked for 2026-10-19)
 
 A Goose program can't use the CPU's SHA instructions
 ([findings](../docs/goose-findings.md#goose-has-no-sha-instructions)), and they are
-most of the gap to OpenSSL (task 002). This package has no C, so the fix belongs in
-Goose. This task writes the proposal for Goose's maintainer, with the prior art and
-the numbers, and builds a working version on a branch of `kaitk/goose`, as goose-http's
-proposals #37, #38, and #39 were.
+most of the gap to OpenSSL (task 002). Task 004 reaches them through a C shim in this
+package as a stopgap ([decisions](../docs/decisions.md)); the lasting fix belongs in
+Goose, and the shim goes once the pin has it. This task writes the proposal for
+Goose's maintainer, with the prior art and the numbers, and builds a working version
+on a branch of `kaitk/goose`, as goose-http's proposals #37, #38, and #39 were. Task
+004's `shim/sha.c` is the prototype: its rounds, its CPU checks, and its tests on and
+off the instructions.
 
 ## What Goose has now
 
