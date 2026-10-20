@@ -285,7 +285,7 @@ GOOSE_HASH_PORTABLE=1 OPENSSL_ia32cap='~0x10000A0000000000:~0x20000128' bench/ru
 
 `bench/build.sh` ends by naming the Goose compiler, the
 OpenSSL, and the C compiler it built with. Record them with the results, with what
-`AGENTS.md` asks for, under the machine's own section of [results](results.md). When a
+`agents/benchmarks.md` asks for, under the machine's own section of [results](results.md). When a
 new run replaces a machine's latest, move the old one to
 [results-history.md](results-history.md).
 
