@@ -154,7 +154,7 @@ tasks/         task tracking (tasks/README.md)
 
 | What | Pin | Why |
 |---|---|---|
-| Goose compiler | `aardappel/goose` release `v2026.2` (`3ee3871`), which the scripts fetch ([setup](docs/development.md#set-up-the-goose-compiler)) | An official release builds the same on every platform; a commit is pinned only for a fix not yet released |
+| Goose compiler | `aardappel/goose` release `v2026.3` (`8511ae3`), which the scripts fetch ([setup](docs/development.md#set-up-the-goose-compiler)) | An official release builds the same on every platform; a commit is pinned only for a fix not yet released |
 | Benchmark library | The OpenSSL installed on the machine, 3 or later | Each result names the version it ran against |
 
 Move the pin in its own commit, with the tests and results that still hold
